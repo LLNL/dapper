@@ -1,0 +1,19 @@
+[package]
+name = "dapper"
+version = "0.0.0-pre.0"
+edition = "2021"
+license = "MIT"
+description = "Dependency Analysis Project - identifying dependencies in C/C++ code and packages on filesystems"
+repository = "https://github.com/LLNL/dapper/"
+categories = ["command-line-utilities", "development-tools"]
+
+[build-dependencies]
+cc="1.2"
+
+[dependencies]
+tree-sitter = "0.24"
+tree-sitter-cpp = "0.23"
+tree-sitter-rust = "0.23"
+streaming-iterator = "0.1"
+walkdir = "2.5.0"
+rayon = "1.10.0"
