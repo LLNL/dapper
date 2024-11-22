@@ -43,10 +43,43 @@ fn main() {
             .collect();
 
         // Use Rayon to process files in parallel
+        let system_include_map = std::sync::Mutex::new(std::collections::HashMap::new());
+        let user_include_map = std::sync::Mutex::new(std::collections::HashMap::new());
+
         files.par_iter().for_each(|entry| {
-            println!("{}", entry.path().display());
-            extract_includes(entry.path().to_str().unwrap(), &query);
+            //println!("{}", entry.path().display());
+            let (system_includes, user_includes) =
+                extract_includes(entry.path().to_str().unwrap(), &query);
+
+            {
+                let mut system_include_map = system_include_map.lock().unwrap();
+                for include in system_includes {
+                    system_include_map
+                        .entry(include)
+                        .or_insert_with(Vec::new)
+                        .push(entry.path().display().to_string());
+                }
+            }
+
+            {
+                let mut user_include_map = user_include_map.lock().unwrap();
+                for include in user_includes {
+                    user_include_map
+                        .entry(include)
+                        .or_insert_with(Vec::new)
+                        .push(entry.path().display().to_string());
+                }
+            }
         });
+
+        let system_include_map = system_include_map.lock().unwrap();
+        let user_include_map = user_include_map.lock().unwrap();
+
+        let unique_system_includes: Vec<_> = system_include_map.keys().cloned().collect();
+        let unique_user_includes: Vec<_> = user_include_map.keys().cloned().collect();
+
+        println!("Unique System Includes: {:#?}", unique_system_includes);
+        println!("Unique User Includes: {:#?}", unique_user_includes);
     }
 }
 
@@ -66,31 +99,44 @@ fn is_source_code(entry: &DirEntry) -> bool {
     false
 }
 
-fn extract_includes(file_path: &str, query: &Query) {
-    // Create a new parser for each file to ensure thread safety
+fn extract_includes(file_path: &str, query: &Query) -> (Vec<String>, Vec<String>) {
+    let mut system_includes = Vec::new();
+    let mut user_includes = Vec::new();
+
     let mut parser = Parser::new();
     parser
         .set_language(&tree_sitter_cpp::LANGUAGE.into())
         .expect("Error loading C++ grammar");
 
-    let source_code = fs::read_to_string(file_path).expect("Should be able to read the file");
+    let source_code = match fs::read_to_string(file_path) {
+        Ok(content) => content,
+        Err(e) => {
+            eprintln!("Error reading file {}: {}", file_path, e);
+            return (system_includes, user_includes);
+        }
+    };
     let tree = parser.parse(&source_code, None).unwrap();
     let root_node = tree.root_node();
 
     let mut query_cursor = QueryCursor::new();
     let mut matches = query_cursor.matches(query, root_node, source_code.as_bytes());
 
-    // Iterate over matches and print the captured include files
     while let Some(m) = matches.next() {
         for capture in m.captures {
             let node = capture.node;
-            let capture_name = &query.capture_names()[capture.index as usize];
+            let capture_name = query.capture_names()[capture.index as usize];
             let mut include_name = node.utf8_text(source_code.as_bytes()).unwrap().chars();
-            // Trim first and last characters from included file name
-            include_name.next(); // < or "
-            include_name.next_back(); // > or "
-            let include_name = include_name.as_str();
-            println!("{capture_name}: {include_name}")
+            include_name.next();
+            include_name.next_back();
+            let include_name = include_name.as_str().to_string();
+
+            match capture_name {
+                "system_include" => system_includes.push(include_name),
+                "user_include" => user_includes.push(include_name),
+                _ => {}
+            }
         }
     }
+
+    (system_includes, user_includes)
 }
