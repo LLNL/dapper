@@ -2,11 +2,15 @@
 
 DAPper helps identify the software packages installed on a system, and expose implicit dependencies in source code.
 
-The main tool for end users parses source code to determine packages that a C/C++ codebase depends.
+The main tool for end users parses source code to determine packages that a C/C++ codebase depends on.
 In addition, datasets mapping file names to packages that install them for various ecosystems are provided.
 The tools used to create those datasets are also available in this repository.
 
 ## Getting Started
+
+> [!NOTE]
+> DAPper is very early in development -- things may not work as expected or be implemented yet!
+> Feel free to start a discussion in https://github.com/LLNL/dapper/discussions for things you'd like to see.
 
 ### Installation
 
