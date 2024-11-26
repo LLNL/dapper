@@ -101,7 +101,7 @@ fn main() {
                 if let Ok((package_name, file_path)) = result {
                     let path_buf = std::path::Path::new(&file_path);
                     if path_buf.ends_with(include) && path_buf.to_str().unwrap().contains("include") {
-                        return Some(package_name);
+                        return Some((package_name, file_path));
                     }
                 }
                 None
