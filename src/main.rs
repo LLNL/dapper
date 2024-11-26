@@ -24,7 +24,7 @@ fn read_contents_file(file_path: &str) -> HashMap<String, Vec<(String, String)>>
                 .rsplit('/')
                 .next()
                 .unwrap()
-                .to_lowercase();
+                .to_string();
             package_map
                 .entry(file_name)
                 .or_insert_with(Vec::new)
