@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: MIT
 
 use rayon::prelude::*;
+use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::fs::metadata;
@@ -11,7 +12,39 @@ use streaming_iterator::StreamingIterator;
 use tree_sitter::{Parser, Query, QueryCursor};
 use walkdir::{DirEntry, WalkDir};
 
+fn read_contents_file(file_path: &str) -> HashMap<String, Vec<(String, String)>> {
+    let mut package_map = HashMap::new();
+    let contents =
+        fs::read_to_string(file_path).expect("Failed to read name to package mapping file");
+
+    for line in contents.lines() {
+        if let Some((file_path, package_name)) = line.rsplit_once([' ', '\t'].as_ref()) {
+            let file_name = file_path
+                .trim_end()
+                .rsplit('/')
+                .next()
+                .unwrap()
+                .to_string();
+            package_map
+                .entry(file_name)
+                .or_insert_with(Vec::new)
+                .push((package_name.to_string(), file_path.trim_end().to_string()));
+        }
+    }
+
+    package_map
+}
+
 fn main() {
+    let db = read_contents_file("Contents-amd64-noble");
+    // let mut file_counts: Vec<_> = db.iter().map(|(file, packages)| (file, packages.len())).collect();
+    // file_counts.sort_by(|a, b| b.1.cmp(&a.1));
+
+    // println!("Files sorted by unique package count:");
+    // for (file, count) in file_counts {
+    //     println!("{}: {}", file, count);
+    // }
+    // return;
     let args: Vec<String> = env::args().collect();
     println!("{args:?}");
     let arg_path = &args[1];
@@ -54,6 +87,7 @@ fn main() {
             {
                 let mut system_include_map = system_include_map.lock().unwrap();
                 for include in system_includes {
+                    // Corner case: Build system adding local directory to system include path?
                     system_include_map
                         .entry(include)
                         .or_insert_with(Vec::new)
@@ -64,6 +98,8 @@ fn main() {
             {
                 let mut user_include_map = user_include_map.lock().unwrap();
                 for include in user_includes {
+                    // TODO Before adding a path, check if the include is satisfied by a file in the source codet
+                    // If it is, downgrade the likelihood of the header file being from a package...
                     user_include_map
                         .entry(include)
                         .or_insert_with(Vec::new)
@@ -80,6 +116,35 @@ fn main() {
 
         println!("Unique System Includes: {:#?}", unique_system_includes);
         println!("Unique User Includes: {:#?}", unique_user_includes);
+        for include in unique_system_includes
+            .iter()
+            .chain(unique_user_includes.iter())
+        {
+            let include_lower = include.rsplit('/').next().unwrap().to_lowercase();            
+            let matching_packages: Vec<_> = db
+                .get(&include_lower)
+                .map(|packages| {
+                    packages
+                        .iter()
+                        .filter(|(_, path)| {
+                            // Use Path for ends with comparison to avoid false positives due to only matching part of a path component
+                            let path_buf = std::path::Path::new(path);
+                            path_buf.ends_with(include) && path_buf.to_str().unwrap().contains("include")
+                            // TODO An additional check could be added to see if the include path is directly under a common include directory
+                            // If it is, then very likely an accurate package detection
+                            // Otherwise, it could be a false positive due to a package vendoring another package
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_else(Vec::new);
+
+            if !matching_packages.is_empty() {
+                println!("Include: {} -> Packages: {:?}", include, matching_packages);
+            }
+        }
+        // print size of each map
+        println!("System Unique Include Map Size: {}", unique_system_includes.len());
+        println!("User Unique Include Map Size: {}", unique_user_includes.len());
     }
 }
 
