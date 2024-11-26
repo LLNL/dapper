@@ -3,53 +3,21 @@
 //
 // SPDX-License-Identifier: MIT
 
-use bincode;
 use rayon::prelude::*;
-use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::fs::metadata;
 use streaming_iterator::StreamingIterator;
 use tree_sitter::{Parser, Query, QueryCursor};
 use walkdir::{DirEntry, WalkDir};
-use rocksdb;
-
-fn read_contents_file(file_path: &str) -> HashMap<String, Vec<(String, String)>> {
-    let mut package_map = HashMap::new();
-    let contents =
-        fs::read_to_string(file_path).expect("Failed to read name to package mapping file");
-
-    for line in contents.lines() {
-        if let Some((file_path, package_name)) = line.rsplit_once([' ', '\t'].as_ref()) {
-            let file_name = file_path.trim_end().rsplit('/').next().unwrap().to_string();
-            package_map
-                .entry(file_name)
-                .or_insert_with(Vec::new)
-                .push((package_name.to_string(), file_path.trim_end().to_string()));
-        }
-    }
-
-    package_map
-}
 
 fn main() {
-    let db = rocksdb::DB::open_default("rocksdb").expect("Failed to open RocksDB database");
+    let conn = rusqlite::Connection::open("package-files_contents-amd64_long-package-names.db")
+        .expect("Failed to open database");
+    let mut stmt = conn
+        .prepare("SELECT package_name, file_path FROM package_files WHERE file_name = ?1")
+        .expect("Failed to prepare statement");
 
-    // for (key, value) in read_contents_file("Contents-amd64-noble") {
-    //     let value_bytes: Vec<u8> = bincode::serialize(&value).expect("Failed to serialize value");
-    //     db.put(key, value_bytes).expect("Failed to insert into RocksDB database");
-    // }
-    // db.flush().expect("Failed to flush RocksDB database");
-    // return;
-
-    // let mut file_counts: Vec<_> = db.iter().map(|(file, packages)| (file, packages.len())).collect();
-    // file_counts.sort_by(|a, b| b.1.cmp(&a.1));
-
-    // println!("Files sorted by unique package count:");
-    // for (file, count) in file_counts {
-    //     println!("{}: {}", file, count);
-    // }
-    // return;
     let args: Vec<String> = env::args().collect();
     println!("{args:?}");
     let arg_path = &args[1];
@@ -126,25 +94,28 @@ fn main() {
             .chain(unique_user_includes.iter())
         {
             let include_lower = include.rsplit('/').next().unwrap().to_lowercase();
-            if let Ok(Some(value)) = db.get(&include_lower) {
-                let deserialized_value: Vec<(String, String)> =
-                    bincode::deserialize(&value).expect("Failed to deserialize value");
-                let matching_packages: Vec<_> = deserialized_value
-                    .iter()
-                    .filter(|(_, path)| {
-                        // Use Path for ends with comparison to avoid false positives due to only matching part of a path component
-                        let path_buf = std::path::Path::new(path);
-                        path_buf.ends_with(include)
+            let matching_packages: Vec<_> = stmt
+                .query_map([&include_lower], |row| {
+                    let package_name: String = row.get(0)?;
+                    let file_path: String = row.get(1)?;
+                    Ok((package_name, file_path))
+                })
+                .expect("Failed to query database")
+                .filter_map(|result| {
+                    if let Ok((package_name, file_path)) = result {
+                        let path_buf = std::path::Path::new(&file_path);
+                        if path_buf.ends_with(include)
                             && path_buf.to_str().unwrap().contains("include")
-                        // TODO An additional check could be added to see if the include path is directly under a common include directory
-                        // If it is, then very likely an accurate package detection
-                        // Otherwise, it could be a false positive due to a package vendoring another package
-                    })
-                    .collect::<Vec<_>>();
+                        {
+                            return Some((package_name, file_path));
+                        }
+                    }
+                    None
+                })
+                .collect();
 
-                if !matching_packages.is_empty() {
-                    println!("Include: {} -> Packages: {:?}", include, matching_packages);
-                }
+            if !matching_packages.is_empty() {
+                println!("Include: {} -> Packages: {:?}", include, matching_packages);
             }
         }
         // print size of each map
