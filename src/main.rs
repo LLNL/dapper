@@ -3,6 +3,7 @@
 //
 // SPDX-License-Identifier: MIT
 
+use bincode;
 use rayon::prelude::*;
 use std::collections::HashMap;
 use std::env;
@@ -11,7 +12,6 @@ use std::fs::metadata;
 use streaming_iterator::StreamingIterator;
 use tree_sitter::{Parser, Query, QueryCursor};
 use walkdir::{DirEntry, WalkDir};
-use bincode;
 
 fn read_contents_file(file_path: &str) -> HashMap<String, Vec<(String, String)>> {
     let mut package_map = HashMap::new();
@@ -20,12 +20,7 @@ fn read_contents_file(file_path: &str) -> HashMap<String, Vec<(String, String)>>
 
     for line in contents.lines() {
         if let Some((file_path, package_name)) = line.rsplit_once([' ', '\t'].as_ref()) {
-            let file_name = file_path
-                .trim_end()
-                .rsplit('/')
-                .next()
-                .unwrap()
-                .to_string();
+            let file_name = file_path.trim_end().rsplit('/').next().unwrap().to_string();
             package_map
                 .entry(file_name)
                 .or_insert_with(Vec::new)
@@ -37,14 +32,13 @@ fn read_contents_file(file_path: &str) -> HashMap<String, Vec<(String, String)>>
 }
 
 fn main() {
-    let serialized_db = fs::read("db.bincode").expect("Failed to read serialized database file");
-    let db: HashMap<String, Vec<(String, String)>> =
-        bincode::deserialize(&serialized_db).expect("Failed to deserialize database");
+    let db = sled::open("sled_db").expect("Failed to open sled database");
 
-    // let db = read_contents_file("Contents-amd64-noble");
-
-    // let serialized_db = bincode::serialize(&db).expect("Failed to serialize database");
-    // fs::write("db.bincode", serialized_db).expect("Failed to write serialized database to file");
+    // for (key, value) in read_contents_file("Contents-amd64-noble") {
+    //     let value_bytes: Vec<u8> = bincode::serialize(&value).expect("Failed to serialize value");
+    //     db.insert(key, value_bytes).expect("Failed to insert into sled database");
+    // }
+    // db.flush().expect("Failed to flush sled database");
     // return;
 
     // let mut file_counts: Vec<_> = db.iter().map(|(file, packages)| (file, packages.len())).collect();
@@ -130,31 +124,37 @@ fn main() {
             .iter()
             .chain(unique_user_includes.iter())
         {
-            let include_lower = include.rsplit('/').next().unwrap().to_lowercase();            
-            let matching_packages: Vec<_> = db
-                .get(&include_lower)
-                .map(|packages| {
-                    packages
-                        .iter()
-                        .filter(|(_, path)| {
-                            // Use Path for ends with comparison to avoid false positives due to only matching part of a path component
-                            let path_buf = std::path::Path::new(path);
-                            path_buf.ends_with(include) && path_buf.to_str().unwrap().contains("include")
-                            // TODO An additional check could be added to see if the include path is directly under a common include directory
-                            // If it is, then very likely an accurate package detection
-                            // Otherwise, it could be a false positive due to a package vendoring another package
-                        })
-                        .collect::<Vec<_>>()
-                })
-                .unwrap_or_else(Vec::new);
+            let include_lower = include.rsplit('/').next().unwrap().to_lowercase();
+            if let Ok(Some(value)) = db.get(&include_lower) {
+                let deserialized_value: Vec<(String, String)> =
+                    bincode::deserialize(&value).expect("Failed to deserialize value");
+                let matching_packages: Vec<_> = deserialized_value
+                    .iter()
+                    .filter(|(_, path)| {
+                        // Use Path for ends with comparison to avoid false positives due to only matching part of a path component
+                        let path_buf = std::path::Path::new(path);
+                        path_buf.ends_with(include)
+                            && path_buf.to_str().unwrap().contains("include")
+                        // TODO An additional check could be added to see if the include path is directly under a common include directory
+                        // If it is, then very likely an accurate package detection
+                        // Otherwise, it could be a false positive due to a package vendoring another package
+                    })
+                    .collect::<Vec<_>>();
 
-            if !matching_packages.is_empty() {
-                println!("Include: {} -> Packages: {:?}", include, matching_packages);
+                if !matching_packages.is_empty() {
+                    println!("Include: {} -> Packages: {:?}", include, matching_packages);
+                }
             }
         }
         // print size of each map
-        println!("System Unique Include Map Size: {}", unique_system_includes.len());
-        println!("User Unique Include Map Size: {}", unique_user_includes.len());
+        println!(
+            "System Unique Include Map Size: {}",
+            unique_system_includes.len()
+        );
+        println!(
+            "User Unique Include Map Size: {}",
+            unique_user_includes.len()
+        );
     }
 }
 
