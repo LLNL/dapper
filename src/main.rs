@@ -11,6 +11,7 @@ use std::fs::metadata;
 use streaming_iterator::StreamingIterator;
 use tree_sitter::{Parser, Query, QueryCursor};
 use walkdir::{DirEntry, WalkDir};
+use serde_json::to_string;
 
 fn read_contents_file(file_path: &str) -> HashMap<String, Vec<(String, String)>> {
     let mut package_map = HashMap::new();
@@ -36,7 +37,14 @@ fn read_contents_file(file_path: &str) -> HashMap<String, Vec<(String, String)>>
 }
 
 fn main() {
-    let db = read_contents_file("Contents-amd64-noble");
+    // let db = read_contents_file("Contents-amd64-noble");
+    // let json = to_string(&db).expect("Failed to serialize db to JSON");
+    // fs::write("db.json", json).expect("Failed to write JSON to file");
+    // return;
+    let db: HashMap<String, Vec<(String, String)>> = serde_json::from_str(
+        &fs::read_to_string("db.json").expect("Failed to read db.json file")
+    ).expect("Failed to deserialize db.json");
+
     // let mut file_counts: Vec<_> = db.iter().map(|(file, packages)| (file, packages.len())).collect();
     // file_counts.sort_by(|a, b| b.1.cmp(&a.1));
 
