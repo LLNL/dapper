@@ -4,12 +4,84 @@
 // SPDX-License-Identifier: MIT
 
 use rayon::prelude::*;
+use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::fs::metadata;
 use streaming_iterator::StreamingIterator;
 use tree_sitter::{Parser, Query, QueryCursor};
 use walkdir::{DirEntry, WalkDir};
+
+fn read_contents_file(file_path: &str) -> HashMap<String, Vec<(String, String)>> {
+    let mut package_map = HashMap::new();
+    let contents =
+        fs::read_to_string(file_path).expect("Failed to read name to package mapping file");
+
+    for line in contents.lines() {
+        if let Some((file_path, package_name)) = line.rsplit_once([' ', '\t'].as_ref()) {
+            let file_name = file_path.trim_end().rsplit('/').next().unwrap().to_string();
+            package_map
+                .entry(file_name)
+                .or_insert_with(Vec::new)
+                .push((package_name.to_string(), file_path.trim_end().to_string()));
+        }
+    }
+
+    package_map
+}
+
+fn so_name_normalization() {
+    let package_map = read_contents_file("Contents-amd64-noble");
+    for key in package_map.keys() {
+        if key.ends_with(".so") {
+            // For matching cpython libraries it would probably benefit if the -312-x86_64-linux-gnu portion is removed
+            // e.g. stringprep.cpython-312-x86_64-linux-gnu.so -> stringprep.cpython.so
+            // Two kind of strange CPython cases: libsamba-net.cpython-312-x86-64-linux-gnu-samba4.so.0 and libpytalloc-util.cpython-312-x86-64-linux-gnu.so
+            // Things compiled by the haskell compiler also have a pretty standard format: libHSsetlocale-1.0.0.10-EX0ACS22UctCUxDRUitp1V-ghc9.4.7.so
+            if let Some(pos) = key.find(".cpython-") {
+                let base_key = format!("{}.cpython.so", &key[..pos]);
+                match package_map.contains_key(&base_key) {
+                    false => println!("{}", base_key),
+                    true => println!("Collision {}", base_key),
+                }
+            } else if let Some(pos) = key.find(".pypy") {
+                let base_key = format!("{}.pypy.so", &key[..pos]);
+                match package_map.contains_key(&base_key) {
+                    false => println!("{}", base_key),
+                    true => println!("Collision {}", base_key),
+                }
+            } else {
+                // May be worth checking for some other special cases like ld that contain x86-64 or x86_64 in their name...
+                // A binary having ld64.so.1 as a shared library dependency is a good indicator it targets ppc, ppc64le, or s390x
+                println!("{}", key);
+            }
+        } else if key.contains(".so.")
+            && ![".gz", ".patch", ".diff", ".hmac", ".qm"]
+                .iter()
+                .any(|suffix| key.ends_with(suffix))
+        {
+            // Filter out files such as 0001-MIPS-SPARC-fix-wrong-vfork-aliases-in-libpthread.so.patch, t.so.gz, getmax.so.gz, "*.so.0.*" (what?), .libkcapi.so.hmac, libnss_cache_oslogin.so.2.8.gz, local-ldconfig-ignore-ld.so.diff, scribus.so.qm
+            // Interesting SOABI version for a file with a letter in it: libpsmile.MPI1.so.0d
+            let base_key = format!("{}.so", key.split(".so.").next().unwrap());
+            if !package_map.contains_key(&base_key) {
+                println!("{}", key);
+            }
+        } else if key.contains(".so-") {
+            // Decide if the "Kernels" ending in ".hsaco" need to be filtered out
+            let base_key = format!("{}.so", key.split(".so-").next().unwrap());
+            if !package_map.contains_key(&base_key) {
+                println!("{}", key);
+            }
+        } else if key.contains(".so_") {
+            // Decide if this category should be included -- basically just lib_postgresqludf_sys.so_
+            let base_key = format!("{}.so", key.split(".so_").next().unwrap());
+            if !package_map.contains_key(&base_key) {
+                println!("{}", key);
+            }
+        }
+    }
+    return;
+}
 
 fn main() {
     let conn = rusqlite::Connection::open("package-files_contents-amd64_long-package-names.db")
