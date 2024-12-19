@@ -1,0 +1,7 @@
+aiohttp
+jmespath
+requests
+typeguard
+httpx
+python-dateutil
+aiofiles
