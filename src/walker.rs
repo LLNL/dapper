@@ -104,8 +104,8 @@ pub fn process_files(files: Vec<DirEntry>) {
 
 fn is_source_code(entry: &DirEntry) -> bool {
     let extensions = vec![
-        "h", "hpp", "c", "cc", "hh", "cpp", "h++", "c++", "cxx", "hxx", "ixx", "cppm", "ccm",
-        "c++m", "cxxm",
+        "h", "c", "hh", "cc", "hpp", "cpp", "h++", "c++", "hxx", "cxx", "cppm", "ccm", "c++m",
+        "cxxm", "ipp", "ixx", "inl", "tcc", "tpp",
     ];
     if entry.file_type().is_file() {
         if let Some(ext) = entry.path().extension() {
