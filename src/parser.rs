@@ -71,3 +71,15 @@ pub fn extract_includes(file_path: &str) -> (Vec<String>, Vec<String>) {
 
     (system_includes, user_includes)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extract_includes() {
+        let (system_includes, user_includes) = extract_includes("tests/test_files/test.cpp");
+        assert_eq!(system_includes, vec!["iostream"]);
+        assert_eq!(user_includes, vec!["test.h"]);
+    }
+}
