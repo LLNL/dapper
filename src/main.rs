@@ -3,11 +3,17 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::env;
+use clap::Parser;
+
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+#[command(arg_required_else_help(true))]
+struct Args {
+    #[arg(help = "The path to a directory or a file to be analyzed.", index = 1)]
+    path: String,
+}
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
-    println!("{args:?}");
-    let arg_path = &args[1];
-    dapper::run(arg_path);
+    let args = Args::parse();
+    dapper::run(&args.path);
 }
