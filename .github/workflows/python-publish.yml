@@ -80,7 +80,7 @@ jobs:
     needs: build-wheel
     if: github.event.inputs.publish_target == 'testpypi'
     environment:
-      name: pypi
+      name: testpypi
       url: https://test.pypi.org/p/dapper-python
     permissions:
       id-token: write  # IMPORTANT: this permission is mandatory for trusted publishing
