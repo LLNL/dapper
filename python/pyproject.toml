@@ -1,0 +1,58 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dapper-python"
+version = "0.0.0.dev0"
+description = "A Python package for interacting with DAPper datasets"
+authors = [
+    { name = "Ryan Mast", email = "mast9@llnl.gov" }
+]
+license = { text = "MIT License" }
+readme = "README.md"
+requires-python = ">=3.6"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Topic :: Database",
+    "Topic :: Security",
+    "Topic :: Utilities",
+]
+
+[project.urls]
+Homepage = "https://github.com/LLNL/dapper"
+Discussions = "https://github.com/LLNL/dapper/discussions"
+"Issue Tracker" = "https://github.com/LLNL/dapper/issues"
+"Source Code" = "https://github.com/LLNL/dapper"
+
+[project.optional-dependencies]
+test = ["pytest"]
+dev = ["build", "pre-commit"]
+
+[dependency-groups]
+test = ["pytest"]
+dev = ["build", "pre-commit"]
+
+[tool.setuptools.packages.find]
+include = ["dapper_python", "dapper_python.*"]
+
+[project.entry-points."surfactant"]
+
+[tool.pytest.ini_options]
+addopts = ["--import-mode=importlib"]
+pythonpath = "."
+
+[tool.ruff]
+line-length = 100
+indent-width = 4
+
+[tool.ruff.lint]
+# ruff defaults: E4, E7, E9, F
+select = ["E", "F", "B", "I"]
+ignore = ["E501", "F841"]
+# don't fix flake8-bugbear (`B`) violations
+unfixable = ["B"]
