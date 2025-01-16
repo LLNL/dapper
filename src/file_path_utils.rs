@@ -152,13 +152,13 @@ fn normalize_haskell(soname: &str) -> (String, Option<String>, bool) {
                 }
             })
             .map(|name| {
-                // Pull out the version number portion of the name (seems to always be present for libHS ghc libraries)
+                // Pull out the version number portion of the name if it is present
                 // some version numbers may have suffixes such as _thr and _debug
-                name.rsplit_once('-')
-                    .map(|(name, version)| (format!("{}.so", name), Some(version.to_string())))
-            })
-            .unwrap()
-        {
+                name.rsplit_once('-').map_or_else(
+                    || (format!("{}.so", name), None),
+                    |(name, version)| (format!("{}.so", name), Some(version.to_string())),
+                )
+            }) {
             Some((base_soname, version)) => (base_soname, version, true),
             None => ("".to_string(), None, true),
         }
@@ -222,6 +222,7 @@ mod tests {
             ("libHSAgda-2.6.3-F91ij4KwIR0JAPMMfugHqV-ghc9.4.7.so", "libHSAgda.so", Some("2.6.3"), None, true),
             ("libHScpphs-1.20.9.1-1LyMg8r2jodFb2rhIiKke-ghc9.4.7.so", "libHScpphs.so", Some("1.20.9.1"), None, true),
             ("libHSrts-1.0.2_thr_debug-ghc9.4.7.so", "libHSrts.so", Some("1.0.2_thr_debug"), None, true),
+            ("libHSrts-ghc8.6.5.so", "libHSrts.so", None, None, true),
         ];
         do_soname_normalization_tests(test_cases);
     }
