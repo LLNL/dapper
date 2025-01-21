@@ -18,7 +18,7 @@ tree-sitter-rust = "0.23"
 streaming-iterator = "0.1"
 walkdir = "2.5.0"
 rayon = "1.10.0"
-rusqlite = { version = "0.32.1", features = ["bundled"] }
+rusqlite = { version = "0.33.0", features = ["bundled"] }
 lazy_static = "1.5.0"
 clap = { version = "4.5.26", features = ["derive"] }
 regex = "1.11.1"
