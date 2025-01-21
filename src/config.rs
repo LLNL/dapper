@@ -8,6 +8,6 @@ use directories::BaseDirs;
 pub fn get_base_directory() -> &Path
 {
     if let Some(base_dirs) = BaseDirs::new() {
-        base_dirs.data_dir();
+        base_dirs.data_local_dir();
     }
 }
