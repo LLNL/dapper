@@ -1,0 +1,27 @@
+name: Run Crane Commands
+
+on: [push]
+
+jobs:
+  run-crane:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Download go-containerregistry
+      run: wget https://github.com/google/go-containerregistry/releases/download/v0.20.3/go-containerregistry_Linux_x86_64.tar.gz
+
+    - name: Extract go-containerregistry
+      run: tar -xzf go-containerregistry_Linux_x86_64.tar.gz
+
+    - name: Run crane config 1
+      run: ./crane config busybox:1.37.0 -v
+
+    - name: Run crane config 2
+      run: ./crane config busybox:1.37.0 -v
+
+    - name: Run crane config 3
+      run: ./crane config busybox:1.37.0 -v
+
