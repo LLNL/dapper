@@ -68,6 +68,7 @@ def test_haskell_normalization():
         ("libHSAgda-2.6.3-F91ij4KwIR0JAPMMfugHqV-ghc9.4.7.so", "libHSAgda.so", "2.6.3", None, True),
         ("libHScpphs-1.20.9.1-1LyMg8r2jodFb2rhIiKke-ghc9.4.7.so", "libHScpphs.so", "1.20.9.1", None, True),
         ("libHSrts-1.0.2_thr_debug-ghc9.4.7.so", "libHSrts.so", "1.0.2_thr_debug", None, True),
+        ("libHSrts-ghc8.6.5.so", "libHSrts.so", None, None, True)
     ]
     do_soname_normalization_tests(test_cases)
 
