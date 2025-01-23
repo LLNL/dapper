@@ -8,6 +8,7 @@ pub mod debian_packaging;
 pub mod file_path_utils;
 pub mod parser;
 pub mod walker;
+pub mod config;
 
 use std::fs::metadata;
 use walkdir::WalkDir;
