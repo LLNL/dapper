@@ -3,11 +3,24 @@
 //
 // SPDX-License-Identifier: MIT
 
-use directories::BaseDirs;
-
-pub fn get_base_directory() -> &Path
+use directories::ProjectDirs;
+use std::path::PathBuf;
+ 
+pub fn get_base_directory() -> Option<PathBuf>
 {
-    if let Some(base_dirs) = BaseDirs::new() {
-        base_dirs.data_local_dir();
+    match ProjectDirs::from("", "", "dapper") {
+        Some(base_dirs) =>  Some(base_dirs.data_local_dir().to_path_buf()),
+        _ => None,
     }
 }
+
+// metadata file load
+    // look into creating a struct for more automation once format is set
+
+// find databases that fit within x category
+
+// save updated metadata file
+    // may require database update
+
+
+// add unit tests for the functions here

@@ -4,8 +4,9 @@
 // SPDX-License-Identifier: MIT
 
 use rusqlite::{params, Connection, Result};
+use std::path::Path;
 
-pub fn open_database(path: &str) -> Result<Connection> {
+pub fn open_database<P: AsRef<Path>>(path: P) -> Result<Connection> {
     Connection::open(path)
 }
 
