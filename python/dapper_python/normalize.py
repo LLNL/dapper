@@ -136,6 +136,9 @@ def normalize_haskell(soname: str) -> (str, Optional[str], bool):
         api_hash = name.rsplit('-', 1)[-1]
         if len(api_hash) in [20, 21, 22] and api_hash.isalnum():
             name = name[:-(len(api_hash) + 1)]
-        name, version = name.rsplit('-', 1)
-        return f"{name}.so", version, True
+        if '-' in name:
+            name, version = name.rsplit('-', 1)
+            return f"{name}.so", version, True
+        else:
+            return f"{name}.so", None, True
     return soname, None, False
