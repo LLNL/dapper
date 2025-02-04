@@ -3,6 +3,8 @@
 //
 // SPDX-License-Identifier: MIT
 
+use std::path::{Path, PathBuf};
+use path_slash::PathBufExt;
 use once_cell::sync::Lazy;
 use regex::Regex;
 
@@ -169,6 +171,203 @@ fn normalize_haskell(soname: &str) -> (String, Option<String>, bool) {
     }
 }
 
+static MULTIARCH_PATTERN: Lazy<Regex> = Lazy::new(|| {
+    //Some "known" values were pulled from: https://wiki.debian.org/Multiarch/Tuples
+
+    //TODO: Are there any additional sources/values that we'd want
+    //Or some better way to get this than these hard-coded values
+    let architectures = [
+        "aarch64",
+        "alpha",
+        "amd64",
+        "arc",
+        "arm",
+        "arm64",
+        "arm64ilp32",
+        "armel",
+        "armhf",
+        "hppa",
+        "hurd-amd64",
+        "hurd-i386",
+        "i386",
+        "ia64",
+        "kfreebsd-amd64",
+        "kfreebsd-i386",
+        "loong64",
+        "m68k",
+        "mips",
+        "mips64",
+        "mips64el",
+        "mips64r6",
+        "mips64r6el",
+        "mipsel",
+        "mipsn32",
+        "mipsn32el",
+        "mipsn32r6",
+        "mipsn32r6el",
+        "mipsr6",
+        "mipsr6el",
+        "powerpc",
+        "powerpc64",
+        "powerpcspe",
+        "ppc64",
+        "ppc64el",
+        "riscv",
+        "riscv64",
+        "s390",
+        "s390x",
+        "sh4",
+        "sparc",
+        "sparc64",
+        "uefi-amd64",
+        "uefi-arm64",
+        "uefi-armhf",
+        "uefi-i386",
+        "x32",
+        "x86",
+        "x86_64",
+    ];
+    let architectures_pattern = architectures
+        .map(|s| format!(r"(?:{})",s))
+        .join("|");
+
+    let vendors = [
+        "apple",
+        "debian",
+        "ibm",
+        "microsoft",
+        "none",
+        "nvidia",
+        "pc",
+        "redhat",
+        "suse",
+        "ubuntu",
+        "unknown",
+    ];
+    let vendors_pattern = vendors
+        .map(|s| format!(r"(?:{})",s))
+        .join("|");
+
+    let os = [
+        "aix",
+        "android",
+        "darwin",
+        "freebsd",
+        "linux",
+        "netbsd",
+        "openbsd",
+        "solaris",
+        "windows",
+    ];
+    let os_pattern = os
+        .map(|s| format!(r"(?:{})",s))
+        .join("|");
+
+    let libs = [
+        "eabi",
+        "eabihf",
+        "gnu",
+        "musl",
+        "uclibc",
+    ];
+    let libs_pattern = libs
+        .map(|s| format!(r"(?:{})",s))
+        .join("|");
+
+    let regex_pattern = format!(
+        r"(?x)
+        (?<arch>{arch})
+        (?:-(?<vendor>{vendor}))?   #Vendor is optional
+        -(?<os>{os})
+        (?:-(?<lib>{lib}))?     #Lib is optional (ex: linux vs linux-gnu)
+        ",
+        arch=architectures_pattern,
+        vendor=vendors_pattern,
+        os=os_pattern,
+        lib=libs_pattern,
+    );
+    Regex::new(&regex_pattern).expect("Failed to compile regex")
+});
+
+/// Normalizes a string containing a multiarch tuple
+///
+/// **Ex:** `usr/lib/x86_64-unknown-linux-gnu/bin/gcc-ld/ld` -> `usr/lib/bin/gcc-ld/ld`
+///
+/// More information on multarch tuples can be found here:
+/// * https://wiki.debian.org/Multiarch/Tuples
+/// * https://wiki.ubuntu.com/MultiarchSpec
+fn normalize_multiarch(path: &str) -> (String, Option<Vec<&str>>, bool) {
+    let path = Path::new(path);
+
+    let mut working_path = PathBuf::new();
+    let mut matches = Vec::<&str>::new();
+
+    //Process parents/ancestors
+    if let Some(parent) = path.parent() {
+        for component in parent.components(){
+            //We should be able to just unwrap the call to to_str
+            //Since the path was originally constructed from a &str
+            //And &str cannot contain non-unicode characters
+            let component = component.as_os_str().to_str().unwrap();
+
+            if MULTIARCH_PATTERN.is_match(component){
+                matches.push(component);
+            }
+            else {
+                working_path.push(component);
+            }
+        }
+    }
+
+    //Re-add the filename itself
+    if let Some(filename) = path.file_name() {
+        working_path.push(filename);
+    }
+
+    let normalized_path = working_path.to_slash().unwrap().to_string();
+    if matches.is_empty(){
+        (normalized_path, None, false)
+    }
+    else{
+        (normalized_path, Some(matches), true)
+    }
+}
+
+/// Checks if two paths are the same after some normalization, such as ignoring multiarch tuples
+///
+/// **Ex:** Both `usr/lib/x86_64-unknown-linux-gnu/bin/gcc-ld/ld` and `usr/lib/bin/gcc-ld/ld`
+/// would be treated as equivalent and thus return `true`
+///
+/// Currently only ignores multiarch tuples and does not normalize the filename itself
+fn match_canonical_path(path1: &str, path2: &str) -> bool {
+
+    ///Creates an iterator that yields only the non-multiarch directory components of path
+    fn iter_components(path: &Path) -> impl Iterator<Item = &str>{
+        path.parent()
+            .unwrap_or_else(|| Path::new(""))
+            .components()
+            .filter_map(|component| {
+                //Same as above, as the path was passed as a &str, we know it contains valid Unicode
+                let component = component.as_os_str().to_str().unwrap();
+
+                if MULTIARCH_PATTERN.is_match(component){
+                    None
+                }
+                else{
+                    Some(component)
+                }
+            })
+    }
+
+    let path1 = Path::new(path1);
+    let path2 = Path::new(path2);
+
+    if path1.file_name() != path2.file_name(){
+        return false;
+    }
+    iter_components(path1).eq(iter_components(path2))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -258,5 +457,61 @@ mod tests {
             ("*.so.0.*", "*.so", None, Some("0.*"), false),
         ];
         do_soname_normalization_tests(test_cases);
+    }
+
+    #[test]
+    fn test_multiarch_normalization() {
+        #[rustfmt::skip]
+        let test_cases = vec![
+            (
+                "usr/lib/rust-1.74/lib/rustlib/x86_64-unknown-linux-gnu/bin/gcc-ld/ld",
+                "usr/lib/rust-1.74/lib/rustlib/bin/gcc-ld/ld",
+                Some(vec!["x86_64-unknown-linux-gnu"]),
+                true,
+            ),
+            (
+                "usr/share/cargo/registry/libm-0.2.7/ci/docker/aarch64-unknown-linux-gnu/Dockerfile",
+                "usr/share/cargo/registry/libm-0.2.7/ci/docker/Dockerfile",
+                Some(vec!["aarch64-unknown-linux-gnu"]),
+                true,
+            ),
+            (
+                "usr/share/doc/language-pack-gnome-az/copyright",
+                "usr/share/doc/language-pack-gnome-az/copyright",
+                None,
+                false,
+            ),
+            //Interesting case with a multiarch tuple, but not a directory
+            (
+                "usr/share/cargo/registry/cryptoki-sys-0.1.7/src/bindings/aarch64-apple-darwin.rs",
+                "usr/share/cargo/registry/cryptoki-sys-0.1.7/src/bindings/aarch64-apple-darwin.rs",
+                None,
+                false,
+            ),
+            //Multiple multiarches
+            (
+                "usr/share/cargo/x86_64-unknown-linux-gnu/ci/docker/aarch64-unknown-linux-gnu/samplefile",
+                "usr/share/cargo/ci/docker/samplefile",
+                Some(vec!["x86_64-unknown-linux-gnu","aarch64-unknown-linux-gnu"]),
+                true,
+            ),
+            //Filename only
+            (
+                "sample_filename.json",
+                "sample_filename.json",
+                None,
+                false
+            )
+        ];
+
+        for (input, expected_path, expected_replacements, expected_changed) in test_cases {
+            let (normalized_path, replacements, changed) = normalize_multiarch(input);
+
+            assert_eq!(normalized_path, expected_path);
+            assert_eq!(replacements, expected_replacements);
+            assert_eq!(changed, expected_changed);
+            
+            assert!(match_canonical_path(input, expected_path))
+        }
     }
 }

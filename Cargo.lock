@@ -154,6 +154,7 @@ dependencies = [
  "clap",
  "lazy_static",
  "once_cell",
+ "path-slash",
  "rayon",
  "regex",
  "rusqlite",
@@ -268,6 +269,12 @@ name = "once_cell"
 version = "1.20.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1261fe7e33c73b354eab43b1273a57c8f967d0391e80353e51f764ac02cf6775"
+
+[[package]]
+name = "path-slash"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e91099d4268b0e11973f036e885d652fb0b21fedcf69738c627f94db6a44f42"
 
 [[package]]
 name = "pkg-config"
