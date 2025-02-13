@@ -11,12 +11,14 @@ from itertools import repeat
 from dataclasses import dataclass
 from tqdm.auto import tqdm
 from datetime import datetime
+import re
 
 
 CREATE_TABLE_PACAKGES_CMD = """
                     CREATE TABLE IF NOT EXISTS packages(
                         id INTEGER PRIMARY KEY,
                         package_name TEXT,
+                        version TEXT,
                         package_url TEXT,
                         description TEXT,
                         dependencies TEXT,
@@ -56,8 +58,8 @@ UPDATE_PROCESSED_QUERY = """
         """
 
 INSERT_PACKAGE_CMD = """
-                INSERT INTO packages(package_name, package_url, description, dependencies,last_edited, last_serial)
-                values (?,?,?,?,?,?)
+                INSERT INTO packages(package_name, version, package_url, description, dependencies,last_edited, last_serial)
+                values (?,?,?,?,?,?,?)
             """
 
 INSERT_ENTRIES_CMD = """
@@ -69,9 +71,23 @@ INSERT_INITIAL_PROCEESED_PAGE_CMD = """
                 SELECT 0
                 WHERE NOT EXISTS (SELECT 1 FROM last_processed_page)
             """
+GET_LATEST_PACKAGE_CMD = """
+                SELECT * FROM packages
+                WHERE package_name = ?
+                ORDER BY last_edited DESC
+                LIMIT 1
+            """
+UPDATE_LATEST_PACKAGE_CMD = """
+                UPDATE packages
+                SET version = ?, package_url = ?, description = ?, dependencies = ?, last_edited = ?, last_serial = ?
+                WHERE package_name = ?
+                ORDER BY last_edited DESC
+                LIMIT 1
+            """
 @dataclass
 class NugetPackage:
     package_name: str
+    version: str
     package_url: str
     description: Optional[str]
     dependencies:str
@@ -146,11 +162,11 @@ class NugetDatabase:
         yield from packages
 
     @_requires_connection
-    def add_package(self, package_name:str, package_url, description, package_entries:str|Iterable[str],last_edited,*, serial:int) -> None:
+    def add_package(self, package_name:str, version:str, package_url:str, description:str, package_entries:str|Iterable[str],last_edited,*, serial:int) -> None:
         
         with self.get_cursor() as cursor:
             
-            cursor.execute(INSERT_PACKAGE_CMD, (package_name, package_url, description,last_edited, serial))
+            cursor.execute(INSERT_PACKAGE_CMD, (package_name, version, package_url, description,last_edited, serial))
             package_id = cursor.lastrowid
             cursor.executemany(INSERT_ENTRIES_CMD, zip(repeat(package_id), (item[0] for item in package_entries), (item[1] for item in package_entries)))
     
@@ -159,13 +175,14 @@ class NugetDatabase:
         
         with self.get_cursor() as cursor:
             package_names = [package.package_name for package in packages]
+            package_version = [package.version for package in packages]
             package_urls = [package.package_url for package in packages]
             package_descriptions = [package.description for package in packages]
             package_dependencies = [package.dependencies for package in packages]
             package_last_edited = [package.last_edited for package in packages]
             package_serials = [package.last_serial for package in packages]
             
-            cursor.executemany(INSERT_PACKAGE_CMD, zip(package_names, package_urls, package_descriptions, package_dependencies, package_last_edited, package_serials))
+            cursor.executemany(INSERT_PACKAGE_CMD, zip(package_names, package_version, package_urls, package_descriptions, package_dependencies, package_last_edited, package_serials))
 
     @_requires_connection
     def remove_packages(self, package_name:str) -> None:
@@ -176,6 +193,17 @@ class NugetDatabase:
                 WHERE package_name = ?
             """
             cursor.execute(remove_package_cmd, (package_name))
+    
+    @_requires_connection
+    def update_latest_package(self, package: NugetPackage) -> None:
+        with self.get_cursor() as cursor:
+            cursor.execute(UPDATE_LATEST_PACKAGE_CMD, (package.version, package.package_url, package.description, package.dependencies, package.last_edited, package.last_serial, package.package_name))
+
+            # insert new package if no package were updated
+            if cursor.rowcount == 0:
+                cursor.execute(INSERT_PACKAGE_CMD, (package.package_name, package.version, package.package_url, package.description, package.dependencies, package.last_edited, package.last_serial))
+
+
     
     @_requires_connection
     def remove_duplicates(self, ) -> None:
@@ -260,6 +288,14 @@ async def persist_data(queue):
             break
         queue.task_done()
 
+def clean_version(version):
+    match =re.match(r"^(\d+\.\d+\.\d+)", version)
+    return match.group(1) if match else None
+
+def parse_version(version):
+    clean = clean_version(version)
+    return tuple(map(int, clean.split("."))) if clean else (0, 0, 0)
+
 async def main():
     parser = argparse.ArgumentParser(
         description="Create Packages DB from Nuget packages"
@@ -286,6 +322,7 @@ async def main():
         page_items = res["items"]
         page_iterations = len(page_items[last_process_page:])
         page_bar = tqdm(total=page_iterations, desc="page progressing...")
+        content_base_url = "https://api.nuget.org/v3-flatcontainer/"
 
         for idx, page_item in enumerate(page_items[last_process_page:]):
             page_url = page_item['@id']
@@ -299,7 +336,6 @@ async def main():
                 package_processing_list.append(package_detail_url)
                 
             results = await fetch_url(package_processing_list)
-            nuget_packages = []
             package_bar = tqdm(total=len(package_list), desc="package progressing...")
             
             for result in results:
@@ -307,19 +343,36 @@ async def main():
                 if result.get("packageEntries") is not None:
                     package_entries = [packageEntry["@id"] for packageEntry in result.get("packageEntries")]
                     entries_str = ",".join(package_entries)
-                nuget_package = NugetPackage(package_name=result.get("id"), 
-                                                     package_url=result.get("@id"),
-                                                     description=result.get("description"), 
-                                                     dependencies=entries_str, 
-                                                     last_edited=result.get("lastEdited"),
-                                                     last_serial=result.get("packageHash")) 
+                package_name = result.get("id")
+                package_name_lc = package_name.lower()
+                version_url = f"{content_base_url}{package_name_lc}/index.json"
+                versions = await fetch_url(version_url)
                 
-                if nuget_package.last_serial is not None and nuget_package.last_edited > time_filter:
-                    nuget_packages.append(nuget_package)
+                # default version value
+                latest_version = "0.0.0"
+
+                # some package does not have versions
+                if versions is not None:
+
+                    # filter out beta versions
+                    stable_versions = [ clean_version(v) for v in versions["versions"] if clean_version(v) is not None]
+                    latest_version = max(stable_versions, key=parse_version)
+                    # constructing package content url
+                    package_url = f"{content_base_url}{package_name_lc}/{latest_version}/{package_name_lc}.{latest_version}.nupkg"
+
+                nuget_package = NugetPackage(package_name=package_name_lc, 
+                                                    version = latest_version,
+                                                    package_url=package_url,
+                                                    description=result.get("description"), 
+                                                    dependencies=entries_str, 
+                                                    last_edited=result.get("lastEdited"),
+                                                    last_serial=result.get("packageHash")) 
+                
+                if nuget_package.last_serial is not None:
+                    db.update_latest_package(nuget_package)
                 package_bar.update()
             
             page_idx = last_process_page+idx
-            db.add_packages(nuget_packages)
             db.update_last_process((page_idx,))
             
             page_bar.update()
