@@ -5,7 +5,7 @@
 
 use directories::ProjectDirs;
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::fs::File;
 use std::io::{self, Write};
 use toml::Table;
@@ -40,37 +40,7 @@ pub fn get_base_directory() -> Option<PathBuf>
 pub fn create_metadata_file(output_path: Option<PathBuf>) -> std::io::Result<()>
 {
     let mut packages = HashMap::new();
-    // uncomment this out to initialize the metadata file with some data.
-    // packages.insert(
-    //     "linux_debian".to_string(),
-    //     Package {
-    //         version: 1,
-    //         format: "sqlite".to_string(),
-    //         timestamp: Utc::now(),
-    //         categories: vec![
-    //             "category1".to_string(),
-    //             "category2".to_string(),
-    //             "category3".to_string(),
-    //         ],
-    //         filepath: PathBuf::from("this/is/a/test/file/path.sqlite"),
-    //     },
-    // );
-
-    // packages.insert(
-    //     "nuget".to_string(),
-    //     Package {
-    //         version: 1,
-    //         format: "sqlite".to_string(),
-    //         timestamp: Utc::now(),
-    //         categories: vec![
-    //             "categoryA".to_string(),
-    //             "categoryB".to_string(),
-    //             "categoryC".to_string(),
-    //         ],
-    //         filepath: PathBuf::from("this/is/a/test/file/path.sqlite"),
-    //     },
-    // );
-
+    
     // Create the struct to hold the metadata information in
     let config = Config {
         schema_version: 1,
@@ -154,15 +124,11 @@ pub fn read_metadata(path: Option<PathBuf>) -> Result<Table, Box<dyn Error>>
     // Clean up the file path
     let path = path.unwrap_or_else(|| PathBuf::from("metadata.toml"));
     let file_path = path.join("metadata.toml");
-    // println!("using read path: {}", file_path.display());
     // Read the file into a string
     let content = std::fs::read_to_string(file_path.clone())?;
     println!("file read successful");
-    // Print the file contents
-    // println!("Raw content: \n{}", content);
     // Convert the contents of the file into a Table 
     let config: Table = content.parse()?;
-    // eprintln!("file contents: \n{:#?}", &config);
     Ok(config)
 }
 
@@ -210,4 +176,194 @@ pub fn get_file_paths(metadata_path: PathBuf, category_filter: Option<&str>) -> 
 }
 
 
-// add unit tests for the functions here
+// Unit tests
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+    use std::fs;
+
+    #[test]
+    fn test_get_base_directory() {
+        let base_dir = get_base_directory();
+        assert!(base_dir.is_some(), "Base directory should be available");
+        let path = base_dir.unwrap();
+        assert!(path.is_dir(), "Base directory should be a valid directory");
+    }
+
+    #[test]
+    fn test_create_metadata_file() {
+        let temp_dir = tempdir().unwrap();
+        let output_path = temp_dir.path().to_path_buf();
+
+        // Create metadata file
+        let result = create_metadata_file(Some(output_path.clone()));
+        assert!(result.is_ok(), "Metadata file creation should succeed");
+
+        // Check if the file exists
+        let metadata_file = output_path.join("metadata.toml");
+        assert!(metadata_file.exists(), "Metadata file should exist");
+
+        // Read and verify the contents
+        let content = fs::read_to_string(metadata_file).unwrap();
+        let config: Config = toml::from_str(&content).unwrap();
+        assert_eq!(config.schema_version, 1, "Schema version should be 1");
+        assert!(config.packages.is_empty(), "Initial packages list should be empty");
+    }
+
+    #[test]
+    fn test_update_metadata_add_new_package() {
+        let temp_dir = tempdir().unwrap();
+        let output_path = temp_dir.path().to_path_buf();
+
+        // Create metadata file
+        create_metadata_file(Some(output_path.clone())).unwrap();
+
+        // Update metadata by adding a new package
+        let result = update_metadata(
+            Some(output_path.clone()),
+            "test_package",
+            Some("json"),
+            Some("test_category"),
+            Some(PathBuf::from("test/path")),
+            true,
+        );
+        assert!(result.is_ok(), "Updating metadata should succeed");
+
+        // Verify the contents
+        let metadata_file = output_path.join("metadata.toml");
+        let content = fs::read_to_string(metadata_file).unwrap();
+        let config: Config = toml::from_str(&content).unwrap();
+
+        assert!(config.packages.contains_key("test_package"), "Package should be added");
+        let package = config.packages.get("test_package").unwrap();
+        assert_eq!(package.format, "json", "Package format should be updated");
+        assert!(package.categories.contains(&"test_category".to_string()), "Category should be added");
+        assert_eq!(package.filepath, PathBuf::from("test/path"), "Filepath should be updated");
+    }
+
+    #[test]
+    fn test_update_metadata_update_existing_package() {
+        let temp_dir = tempdir().unwrap();
+        let output_path = temp_dir.path().to_path_buf();
+
+        // Create metadata file with an initial package
+        create_metadata_file(Some(output_path.clone())).unwrap();
+        update_metadata(
+            Some(output_path.clone()),
+            "test_package",
+            Some("json"),
+            Some("test_category"),
+            Some(PathBuf::from("test/path")),
+            true,
+        )
+        .unwrap();
+
+        // Update the existing package
+        let result = update_metadata(
+            Some(output_path.clone()),
+            "test_package",
+            Some("sqlite"),
+            Some("new_category"),
+            None,
+            false,
+        );
+        assert!(result.is_ok(), "Updating existing package should succeed");
+
+        // Verify the updated contents
+        let metadata_file = output_path.join("metadata.toml");
+        let content = fs::read_to_string(metadata_file).unwrap();
+        let config: Config = toml::from_str(&content).unwrap();
+
+        let package = config.packages.get("test_package").unwrap();
+        assert_eq!(package.format, "sqlite", "Package format should be updated");
+        assert!(package.categories.contains(&"new_category".to_string()), "New category should be added");
+    }
+
+    #[test]
+    fn test_read_metadata() {
+        let temp_dir = tempdir().unwrap();
+        let output_path = temp_dir.path().to_path_buf();
+
+        // Create metadata file
+        create_metadata_file(Some(output_path.clone())).unwrap();
+
+        // Read metadata
+        let result = read_metadata(Some(output_path.clone()));
+        assert!(result.is_ok(), "Reading metadata should succeed");
+
+        let config = result.unwrap();
+        assert_eq!(config["schema_version"].as_integer().unwrap(), 1, "Schema version should be 1");
+    }
+
+    #[test]
+    fn test_search_by_category() {
+        let temp_dir = tempdir().unwrap();
+        let output_path = temp_dir.path().to_path_buf();
+
+        // Create metadata file with two packages
+        create_metadata_file(Some(output_path.clone())).unwrap();
+        update_metadata(
+            Some(output_path.clone()),
+            "package1",
+            Some("json"),
+            Some("category1"),
+            Some(PathBuf::from("path1")),
+            true,
+        )
+        .unwrap();
+        update_metadata(
+            Some(output_path.clone()),
+            "package2",
+            Some("json"),
+            Some("category2"),
+            Some(PathBuf::from("path2")),
+            true,
+        )
+        .unwrap();
+
+        // Search for packages in "category1"
+        let result = search_by_category(output_path.join("metadata.toml"), "category1");
+        assert!(result.is_ok(), "Searching by category should succeed");
+
+        let matching_packages = result.unwrap();
+        assert_eq!(matching_packages.len(), 1, "Only one package should match");
+        assert!(matching_packages.contains_key("package1"), "Matching package should be 'package1'");
+    }
+
+    #[test]
+    fn test_get_file_paths() {
+        let temp_dir = tempdir().unwrap();
+        let output_path = temp_dir.path().to_path_buf();
+
+        // Create metadata file with two packages
+        create_metadata_file(Some(output_path.clone())).unwrap();
+        update_metadata(
+            Some(output_path.clone()),
+            "package1",
+            Some("json"),
+            Some("category1"),
+            Some(PathBuf::from("path1")),
+            true,
+        )
+        .unwrap();
+        update_metadata(
+            Some(output_path.clone()),
+            "package2",
+            Some("json"),
+            Some("category2"),
+            Some(PathBuf::from("path2")),
+            true,
+        )
+        .unwrap();
+
+        // Get file paths for all packages
+        let result = get_file_paths(output_path.join("metadata.toml"), None);
+        assert!(result.is_ok(), "Getting file paths should succeed");
+
+        let file_paths = result.unwrap();
+        assert_eq!(file_paths.len(), 2, "There should be two file paths");
+        assert!(file_paths.contains(&PathBuf::from("path1")), "File paths should include 'path1'");
+        assert!(file_paths.contains(&PathBuf::from("path2")), "File paths should include 'path2'");
+    }
+}
