@@ -3,7 +3,6 @@
 //
 // SPDX-License-Identifier: MIT
 
-use directories::ProjectDirs;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::fs::File;
@@ -27,14 +26,6 @@ pub struct Package {
     pub timestamp: DateTime<Utc>,
     pub categories: Vec<String>,
     pub filepath: PathBuf,
-}
- 
-pub fn get_base_directory() -> Option<PathBuf>
-{
-    match ProjectDirs::from("", "", "dapper") {
-        Some(base_dirs) =>  Some(base_dirs.data_local_dir().to_path_buf()),
-        _ => None,
-    }
 }
 
 pub fn create_metadata_file(output_path: Option<PathBuf>) -> std::io::Result<()>
@@ -182,14 +173,6 @@ mod tests {
     use super::*;
     use tempfile::tempdir;
     use std::fs;
-
-    #[test]
-    fn test_get_base_directory() {
-        let base_dir = get_base_directory();
-        assert!(base_dir.is_some(), "Base directory should be available");
-        let path = base_dir.unwrap();
-        assert!(path.is_dir(), "Base directory should be a valid directory");
-    }
 
     #[test]
     fn test_create_metadata_file() {

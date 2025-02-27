@@ -5,7 +5,7 @@
 
 use crate::database::{open_database, prepare_statement, query_package_files};
 use walkdir::{DirEntry, IntoIter};
-use crate::config::get_base_directory;
+use crate::directory_info::get_base_directory;
 
 pub fn collect_files(walker: IntoIter) -> Vec<DirEntry> {
     walker
