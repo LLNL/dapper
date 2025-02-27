@@ -5,6 +5,7 @@
 
 use crate::database::{open_database, prepare_statement, query_package_files};
 use walkdir::{DirEntry, IntoIter};
+use crate::directory_info::get_base_directory;
 
 pub fn collect_files(walker: IntoIter) -> Vec<DirEntry> {
     walker
@@ -19,7 +20,10 @@ pub fn process_files(files: Vec<DirEntry>) {
     use std::collections::HashMap;
     use std::sync::Mutex;
 
-    let conn = open_database("package-files_contents-amd64_long-package-names.db")
+    let mut database_dir = get_base_directory().expect("Unable to get the user's local data directory");
+    database_dir.push("LinuxPackageDB.db");
+
+    let conn = open_database(database_dir)
         .expect("Failed to open database");
     let mut stmt = prepare_statement(
         &conn,
