@@ -3,10 +3,10 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::path::{Path, PathBuf};
-use path_slash::PathBufExt;
 use once_cell::sync::Lazy;
+use path_slash::PathBufExt;
 use regex::Regex;
+use std::path::{Path, PathBuf};
 
 pub enum NormalizedFileName {
     NormalizedSoname(NormalizedSoname),
@@ -227,9 +227,7 @@ static MULTIARCH_PATTERN: Lazy<Regex> = Lazy::new(|| {
         "x86",
         "x86_64",
     ];
-    let architectures_pattern = architectures
-        .map(|s| format!(r"(?:{})",s))
-        .join("|");
+    let architectures_pattern = architectures.map(|s| format!(r"(?:{})", s)).join("|");
 
     let vendors = [
         "apple",
@@ -244,35 +242,15 @@ static MULTIARCH_PATTERN: Lazy<Regex> = Lazy::new(|| {
         "ubuntu",
         "unknown",
     ];
-    let vendors_pattern = vendors
-        .map(|s| format!(r"(?:{})",s))
-        .join("|");
+    let vendors_pattern = vendors.map(|s| format!(r"(?:{})", s)).join("|");
 
     let os = [
-        "aix",
-        "android",
-        "darwin",
-        "freebsd",
-        "linux",
-        "netbsd",
-        "openbsd",
-        "solaris",
-        "windows",
+        "aix", "android", "darwin", "freebsd", "linux", "netbsd", "openbsd", "solaris", "windows",
     ];
-    let os_pattern = os
-        .map(|s| format!(r"(?:{})",s))
-        .join("|");
+    let os_pattern = os.map(|s| format!(r"(?:{})", s)).join("|");
 
-    let libs = [
-        "eabi",
-        "eabihf",
-        "gnu",
-        "musl",
-        "uclibc",
-    ];
-    let libs_pattern = libs
-        .map(|s| format!(r"(?:{})",s))
-        .join("|");
+    let libs = ["eabi", "eabihf", "gnu", "musl", "uclibc"];
+    let libs_pattern = libs.map(|s| format!(r"(?:{})", s)).join("|");
 
     let regex_pattern = format!(
         r"(?x)
@@ -281,10 +259,10 @@ static MULTIARCH_PATTERN: Lazy<Regex> = Lazy::new(|| {
         -(?<os>{os})
         (?:-(?<lib>{lib}))?     #Lib is optional (ex: linux vs linux-gnu)
         ",
-        arch=architectures_pattern,
-        vendor=vendors_pattern,
-        os=os_pattern,
-        lib=libs_pattern,
+        arch = architectures_pattern,
+        vendor = vendors_pattern,
+        os = os_pattern,
+        lib = libs_pattern,
     );
     Regex::new(&regex_pattern).expect("Failed to compile regex")
 });
@@ -304,16 +282,15 @@ fn normalize_multiarch(path: &str) -> (String, Option<Vec<&str>>, bool) {
 
     //Process parents/ancestors
     if let Some(parent) = path.parent() {
-        for component in parent.components(){
+        for component in parent.components() {
             //We should be able to just unwrap the call to to_str
             //Since the path was originally constructed from a &str
             //And &str cannot contain non-unicode characters
             let component = component.as_os_str().to_str().unwrap();
 
-            if MULTIARCH_PATTERN.is_match(component){
+            if MULTIARCH_PATTERN.is_match(component) {
                 matches.push(component);
-            }
-            else {
+            } else {
                 working_path.push(component);
             }
         }
@@ -325,10 +302,9 @@ fn normalize_multiarch(path: &str) -> (String, Option<Vec<&str>>, bool) {
     }
 
     let normalized_path = working_path.to_slash().unwrap().to_string();
-    if matches.is_empty(){
+    if matches.is_empty() {
         (normalized_path, None, false)
-    }
-    else{
+    } else {
         (normalized_path, Some(matches), true)
     }
 }
@@ -340,9 +316,8 @@ fn normalize_multiarch(path: &str) -> (String, Option<Vec<&str>>, bool) {
 ///
 /// Currently only ignores multiarch tuples and does not normalize the filename itself
 fn match_canonical_path(path1: &str, path2: &str) -> bool {
-
     ///Creates an iterator that yields only the non-multiarch directory components of path
-    fn iter_components(path: &Path) -> impl Iterator<Item = &str>{
+    fn iter_components(path: &Path) -> impl Iterator<Item = &str> {
         path.parent()
             .unwrap_or_else(|| Path::new(""))
             .components()
@@ -350,10 +325,9 @@ fn match_canonical_path(path1: &str, path2: &str) -> bool {
                 //Same as above, as the path was passed as a &str, we know it contains valid Unicode
                 let component = component.as_os_str().to_str().unwrap();
 
-                if MULTIARCH_PATTERN.is_match(component){
+                if MULTIARCH_PATTERN.is_match(component) {
                     None
-                }
-                else{
+                } else {
                     Some(component)
                 }
             })
@@ -362,7 +336,7 @@ fn match_canonical_path(path1: &str, path2: &str) -> bool {
     let path1 = Path::new(path1);
     let path2 = Path::new(path2);
 
-    if path1.file_name() != path2.file_name(){
+    if path1.file_name() != path2.file_name() {
         return false;
     }
     iter_components(path1).eq(iter_components(path2))
@@ -510,7 +484,7 @@ mod tests {
             assert_eq!(normalized_path, expected_path);
             assert_eq!(replacements, expected_replacements);
             assert_eq!(changed, expected_changed);
-            
+
             assert!(match_canonical_path(input, expected_path))
         }
     }
