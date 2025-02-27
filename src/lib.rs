@@ -8,7 +8,7 @@ pub mod debian_packaging;
 pub mod file_path_utils;
 pub mod parser;
 pub mod walker;
-pub mod config;
+pub mod dataset_info;
 pub mod directory_info;
 
 use std::fs::metadata;
