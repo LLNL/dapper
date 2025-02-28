@@ -274,7 +274,7 @@ static MULTIARCH_PATTERN: Lazy<Regex> = Lazy::new(|| {
 /// More information on multarch tuples can be found here:
 /// * https://wiki.debian.org/Multiarch/Tuples
 /// * https://wiki.ubuntu.com/MultiarchSpec
-fn normalize_multiarch(path: &str) -> (String, Option<Vec<&str>>, bool) {
+pub fn normalize_multiarch(path: &str) -> (String, Option<Vec<&str>>, bool) {
     let path = Path::new(path);
 
     let mut working_path = PathBuf::new();
@@ -315,7 +315,7 @@ fn normalize_multiarch(path: &str) -> (String, Option<Vec<&str>>, bool) {
 /// would be treated as equivalent and thus return `true`
 ///
 /// Currently only ignores multiarch tuples and does not normalize the filename itself
-fn match_canonical_path(path1: &str, path2: &str) -> bool {
+pub fn match_canonical_path(path1: &str, path2: &str) -> bool {
     ///Creates an iterator that yields only the non-multiarch directory components of path
     fn iter_components(path: &Path) -> impl Iterator<Item = &str> {
         path.parent()
