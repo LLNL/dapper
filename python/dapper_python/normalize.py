@@ -1,6 +1,11 @@
 import re
+
+from dataclasses import dataclass
+
 from typing import Optional, Union
 
+
+@dataclass
 class NormalizedFileName:
     """
     Represents a normalized file name with optional version and SOABI information.
@@ -11,11 +16,13 @@ class NormalizedFileName:
         soabi (Optional[str]): The SOABI version, if available.
         normalized (bool): Indicates if the file name was normalized.
     """
-    def __init__(self, name: str, version: Optional[str] = None, soabi: Optional[str] = None, normalized: bool = False):
-        self.name = name
-        self.version = version
-        self.soabi = soabi
-        self.normalized = normalized
+    name: str
+    version: Optional[str] = None
+    soabi: Optional[str] = None
+    normalized: bool = False
+
+    def __str__(self) -> str:
+        return self.name
 
 def normalize_file_name(name: str) -> Union[NormalizedFileName, str]:
     """
