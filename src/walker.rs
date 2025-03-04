@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: MIT
 
 use crate::database::{open_database, prepare_statement, query_package_files};
+use crate::directory_info::get_base_directory;
 use walkdir::{DirEntry, IntoIter};
 
 pub fn collect_files(walker: IntoIter) -> Vec<DirEntry> {
@@ -19,8 +20,11 @@ pub fn process_files(files: Vec<DirEntry>) {
     use std::collections::HashMap;
     use std::sync::Mutex;
 
-    let conn = open_database("package-files_contents-amd64_long-package-names.db")
-        .expect("Failed to open database");
+    let mut database_dir =
+        get_base_directory().expect("Unable to get the user's local data directory");
+    database_dir.push("LinuxPackageDB.db");
+
+    let conn = open_database(database_dir).expect("Failed to open database");
     let mut stmt = prepare_statement(
         &conn,
         "SELECT package_name, file_path FROM package_files WHERE file_name = ?1",

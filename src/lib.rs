@@ -5,6 +5,7 @@
 
 pub mod database;
 pub mod debian_packaging;
+pub mod directory_info;
 pub mod file_path_utils;
 pub mod parser;
 pub mod walker;
