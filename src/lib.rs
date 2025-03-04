@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: MIT
 
 pub mod database;
+pub mod dataset_info;
 pub mod debian_packaging;
 pub mod directory_info;
 pub mod file_path_utils;
