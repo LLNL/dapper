@@ -155,14 +155,14 @@ impl<'db> CPPParser<'db> {
                 let capture_name = SYS_CALL_QUERY.capture_names()[*index as usize]; // represents the current capture
                 match capture_name // set the func_name and args_node variables to what was in the capture
                 {
-                    "function_name" => 
+                    "function_name" =>
                     {
                         if let Ok(t) = node.utf8_text(source_code.as_bytes())
                         {
                             func_name = Some(t.to_string());
                         }
                     }
-                    "arg_list" => 
+                    "arg_list" =>
                     {
                         args_node = Some(node);
                     }
