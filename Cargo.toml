@@ -14,7 +14,7 @@ cc="1.2"
 [dependencies]
 tree-sitter = "0.25"
 tree-sitter-cpp = "0.23"
-tree-sitter-rust = "0.23"
+tree-sitter-rust = "0.24"
 streaming-iterator = "0.1"
 walkdir = "2.5.0"
 rayon = "1.10.0"
