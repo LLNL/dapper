@@ -30,6 +30,7 @@ import lzma
 
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
+from datetime import datetime
 from io import BytesIO, FileIO, TextIOWrapper
 from urllib.parse import urlparse
 from tqdm.auto import tqdm
@@ -142,6 +143,11 @@ def main():
         type=Path, default=Path('LinuxPackageDB.db'),
         help='Path of output (database) file to create. Defaults to "LinuxPackageDB.db" in the current working directory',
     )
+    parser.add_argument(
+        '-v', '--version',
+        type=int, required=True,
+        help='Version marker for the database to keep track of changes'
+    )
     args = parser.parse_args()
 
     #Currently not set up to be able to handle resuming a previously started database
@@ -214,6 +220,21 @@ def main():
             ON package_files(normalized_file_name);
         """
         cursor.execute(index_cmd)
+
+        #Metadata information about table
+        create_table_cmd = """
+            CREATE TABLE dataset_version(
+                version INTEGER PRIMARY KEY,
+                format TEXT,
+                timestamp INTEGER
+            )
+        """
+        cursor.execute(create_table_cmd)
+        metadata_add_cmd = """
+            INSERT INTO dataset_version(version, format, timestamp)
+            VALUES (?, "Linux", ?)
+        """
+        cursor.execute(metadata_add_cmd, (args.version, int(datetime.now().timestamp())))
 
 if __name__ == "__main__":
     main()
