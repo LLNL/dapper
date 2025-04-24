@@ -1,10 +1,15 @@
 """
 dataset_loader.py - A module for discovering and loading SQLite databases from XDG directories
+
+This module provides both a library interface and a command line interface.
 """
 
 import os
+import sys
 import sqlite3
 import logging
+import argparse
+import shutil
 import xdg.BaseDirectory
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
@@ -198,6 +203,93 @@ class DatasetLoader:
             logger.error(f"Query error on database '{db_name}': {str(e)}")
             return []
     
+    def add_database(self, source_path: str, destination_name: Optional[str] = None) -> bool:
+        """Add a database file to the XDG data directory
+        
+        Args:
+            source_path: Path to the source database file
+            destination_name: Optional name for the database in the XDG directory
+                             If not provided, the original filename will be used
+        
+        Returns:
+            bool: True if the database was successfully added, False otherwise
+        """
+        try:
+            # Check if the source file exists and is a valid SQLite database
+            source_path = os.path.abspath(source_path)
+            if not os.path.exists(source_path):
+                logger.error(f"Source file does not exist: {source_path}")
+                return False
+            
+            if not self._is_sqlite_database(Path(source_path)):
+                logger.error(f"Source file is not a valid SQLite database: {source_path}")
+                return False
+            
+            # Get XDG data directory for datasets
+            xdg_data_home = xdg.BaseDirectory.save_data_path(self.app_name)
+            datasets_dir = os.path.join(xdg_data_home, 'datasets')
+            os.makedirs(datasets_dir, exist_ok=True)
+            
+            # Determine destination filename
+            if destination_name:
+                # Ensure destination has .db extension
+                if not destination_name.lower().endswith('.db'):
+                    destination_name = f"{destination_name}.db"
+            else:
+                # Use original filename
+                destination_name = os.path.basename(source_path)
+            
+            # Create full destination path
+            destination_path = os.path.join(datasets_dir, destination_name)
+            
+            # Copy the database file
+            shutil.copy2(source_path, destination_path)
+            logger.info(f"Added database from {source_path} to {destination_path}")
+            
+            # Load the new database
+            self.load_databases()
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error adding database: {str(e)}")
+            return False
+    
+    def remove_database(self, db_name: str, delete_file: bool = False) -> bool:
+        """Remove a database from the registry and optionally delete the file
+        
+        Args:
+            db_name: Name of the database to remove
+            delete_file: If True, the database file will be deleted
+        
+        Returns:
+            bool: True if the database was successfully removed, False otherwise
+        """
+        # First load databases to ensure we have the current registry
+        self.load_databases()
+        
+        if db_name not in self.databases:
+            logger.error(f"Database '{db_name}' not found")
+            return False
+        
+        try:
+            file_path = self.databases[db_name]
+            
+            # Remove from registry
+            del self.databases[db_name]
+            logger.info(f"Removed database '{db_name}' from registry")
+            
+            # Delete file if requested
+            if delete_file and os.path.exists(file_path):
+                os.remove(file_path)
+                logger.info(f"Deleted database file: {file_path}")
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error removing database: {str(e)}")
+            return False
+    
     def close(self):
         """Close database connection"""
         if self.connection:
@@ -207,36 +299,147 @@ class DatasetLoader:
             except sqlite3.Error as e:
                 logger.error(f"Error closing database connection: {str(e)}")
 
-# Example usage
+def parse_arguments():
+    """Parse command line arguments"""
+    parser = argparse.ArgumentParser(description='Dataset Loader - Manage SQLite databases in XDG directories')
+    
+    # Required parameter for app name
+    parser.add_argument('--app-name', '-a', type=str, default='myapp',
+                        help='Application name for XDG directory lookup')
+    
+    # Subcommands
+    subparsers = parser.add_subparsers(dest='command', help='Command to execute')
+    
+    # List command
+    list_parser = subparsers.add_parser('list', help='List available databases')
+    
+    # Add command
+    add_parser = subparsers.add_parser('add', help='Add a database to the XDG directory')
+    add_parser.add_argument('source', help='Path to the source database file')
+    add_parser.add_argument('--name', '-n', help='Name for the database in the XDG directory')
+    
+    # Remove command
+    remove_parser = subparsers.add_parser('remove', help='Remove a database from the registry')
+    remove_parser.add_argument('name', help='Name of the database to remove')
+    remove_parser.add_argument('--delete', '-d', action='store_true',
+                              help='Delete the database file from the XDG directory')
+    
+    # Info command
+    info_parser = subparsers.add_parser('info', help='Show information about a database')
+    info_parser.add_argument('name', help='Name of the database')
+    
+    # Query command
+    query_parser = subparsers.add_parser('query', help='Execute a query against a database')
+    query_parser.add_argument('name', help='Name of the database')
+    query_parser.add_argument('sql', help='SQL query to execute')
+    
+    return parser.parse_args()
+
 def main():
+    """Main function for command line interface"""
+    args = parse_arguments()
+    
     # Initialize dataset loader
-    loader = DatasetLoader('myapp').initialize()
+    loader = DatasetLoader(args.app_name).initialize()
     
-    # Load all databases
-    loader.load_databases()
-    
-    # List available databases
-    databases = loader.list_databases()
-    print(f"Available databases: {databases}")
-    
-    # If databases are found, show tables and sample data
-    if databases:
-        sample_db = databases[0]
-        tables = loader.get_database_tables(sample_db)
-        print(f"Tables in '{sample_db}': {tables}")
+    try:
+        # Process commands
+        if args.command == 'list':
+            # Load databases first
+            loader.load_databases()
+            
+            # List available databases
+            databases = loader.list_databases()
+            if databases:
+                print(f"Available databases:")
+                for db_name in databases:
+                    tables = loader.get_database_tables(db_name)
+                    table_count = len(tables)
+                    print(f"  - {db_name} ({table_count} tables)")
+                    for table in tables:
+                        # Get row count
+                        results = loader.query_database(db_name, f"SELECT COUNT(*) as count FROM {table}")
+                        count = results[0]['count'] if results else 0
+                        print(f"      * {table} ({count} rows)")
+            else:
+                print("No databases available")
         
-        if tables:
-            sample_table = tables[0]
-            results = loader.query_database(
-                sample_db, 
-                f"SELECT * FROM {sample_table} LIMIT 5"
-            )
-            print(f"Sample data from '{sample_db}.{sample_table}':")
-            for row in results:
-                print(row)
+        elif args.command == 'add':
+            # Add a database
+            success = loader.add_database(args.source, args.name)
+            if success:
+                print(f"Successfully added database from {args.source}")
+            else:
+                print(f"Failed to add database from {args.source}")
+        
+        elif args.command == 'remove':
+            # Remove a database
+            success = loader.remove_database(args.name, args.delete)
+            if success:
+                print(f"Successfully removed database '{args.name}'")
+                if args.delete:
+                    print("Database file was deleted")
+            else:
+                print(f"Failed to remove database '{args.name}'")
+        
+        elif args.command == 'info':
+            # Load databases first
+            loader.load_databases()
+            
+            # Show info about a database
+            if args.name in loader.databases:
+                path = loader.databases[args.name]
+                tables = loader.get_database_tables(args.name)
+                print(f"Database: {args.name}")
+                print(f"Path: {path}")
+                print(f"Tables: {len(tables)}")
+                for table in tables:
+                    # Get row count
+                    results = loader.query_database(args.name, f"SELECT COUNT(*) as count FROM {table}")
+                    count = results[0]['count'] if results else 0
+                    print(f"  - {table} ({count} rows)")
+                    
+                    # Get column info
+                    results = loader.query_database(args.name, f"PRAGMA table_info({table})")
+                    print(f"    Columns:")
+                    for col in results:
+                        print(f"      * {col['name']} ({col['type']})")
+            else:
+                print(f"Database '{args.name}' not found")
+        
+        elif args.command == 'query':
+            # Load databases first
+            loader.load_databases()
+            
+            # Execute a query
+            if args.name in loader.databases:
+                results = loader.query_database(args.name, args.sql)
+                if results:
+                    # Print column headers
+                    columns = list(results[0].keys())
+                    header = ' | '.join(columns)
+                    separator = '-' * len(header)
+                    print(header)
+                    print(separator)
+                    
+                    # Print rows
+                    for row in results:
+                        values = [str(row[col]) for col in columns]
+                        print(' | '.join(values))
+                    
+                    print(f"\n{len(results)} rows returned")
+                else:
+                    print("No results returned")
+            else:
+                print(f"Database '{args.name}' not found")
+        
+        else:
+            # No command specified, show help
+            print("No command specified. Use --help for usage information.")
     
-    # Clean up
-    loader.close()
+    finally:
+        # Clean up
+        loader.close()
 
 if __name__ == "__main__":
     main()

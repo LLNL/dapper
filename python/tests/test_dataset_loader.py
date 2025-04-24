@@ -373,3 +373,131 @@ def test_xdg_default_path():
         
         # Clean up temp directory
         shutil.rmtree(temp_dir)
+
+def test_command_line_interface():
+    """Test the command line interface of the dataset loader"""
+    import subprocess
+    import os
+    import shutil
+    import xdg.BaseDirectory
+    from pathlib import Path
+    
+    # Path to the source database in tests/resources
+    source_db = os.path.join(os.path.dirname(__file__), "resources", "NuGet-20200101.db")
+    
+    # Verify the source database exists
+    assert os.path.exists(source_db), f"Source database not found at {source_db}"
+    
+    # Define test app name
+    app_name = 'test_cli_app'
+    
+    # Find the XDG data directory for the test app
+    xdg_data_home = xdg.BaseDirectory.save_data_path(app_name)
+    datasets_dir = os.path.join(xdg_data_home, 'datasets')
+    
+    # Clear any existing test data
+    if os.path.exists(datasets_dir):
+        shutil.rmtree(datasets_dir)
+    os.makedirs(datasets_dir, exist_ok=True)
+    
+    try:
+        # Test the 'add' command
+        add_cmd = [
+            'python', 
+            '-m', 
+            'dapper_python.dataset_loader', 
+            '--app-name', 
+            app_name, 
+            'add', 
+            source_db, 
+            '--name', 
+            'test_nuget_db'
+        ]
+        
+        print(f"Executing command: {' '.join(add_cmd)}")
+        add_result = subprocess.run(add_cmd, capture_output=True, text=True)
+        
+        print(f"Command output:")
+        print(add_result.stdout)
+        if add_result.stderr:
+            print(f"Error output:")
+            print(add_result.stderr)
+        
+        # Check the command succeeded
+        assert add_result.returncode == 0, "Command failed"
+        assert "Successfully added database" in add_result.stdout, "Database wasn't added successfully"
+        
+        # Verify the database file was copied to the XDG directory
+        dest_db_path = os.path.join(datasets_dir, 'test_nuget_db.db')
+        assert os.path.exists(dest_db_path), "Database file wasn't copied to XDG directory"
+        
+        # Test the 'list' command
+        list_cmd = [
+            'python', 
+            '-m', 
+            'dapper_python.dataset_loader', 
+            '--app-name', 
+            app_name, 
+            'list'
+        ]
+        
+        print(f"Executing command: {' '.join(list_cmd)}")
+        list_result = subprocess.run(list_cmd, capture_output=True, text=True)
+        
+        print(f"List command output:")
+        print(list_result.stdout)
+        
+        # Check the command succeeded and our database is listed
+        assert list_result.returncode == 0, "List command failed"
+        assert "test_nuget_db" in list_result.stdout, "Added database not found in list"
+        
+        # Test the 'info' command
+        info_cmd = [
+            'python', 
+            '-m', 
+            'dapper_python.dataset_loader', 
+            '--app-name', 
+            app_name, 
+            'info', 
+            'test_nuget_db'
+        ]
+        
+        print(f"Executing command: {' '.join(info_cmd)}")
+        info_result = subprocess.run(info_cmd, capture_output=True, text=True)
+        
+        print(f"Info command output:")
+        print(info_result.stdout)
+        
+        # Check the command succeeded
+        assert info_result.returncode == 0, "Info command failed"
+        assert "Database: test_nuget_db" in info_result.stdout, "Database info not displayed"
+        
+        # Test 'remove' command
+        remove_cmd = [
+            'python', 
+            '-m', 
+            'dapper_python.dataset_loader', 
+            '--app-name', 
+            app_name, 
+            'remove', 
+            'test_nuget_db', 
+            '--delete'
+        ]
+        
+        print(f"Executing command: {' '.join(remove_cmd)}")
+        remove_result = subprocess.run(remove_cmd, capture_output=True, text=True)
+        
+        print(f"Remove command output:")
+        print(remove_result.stdout)
+        
+        # Check the command succeeded
+        assert remove_result.returncode == 0, "Remove command failed"
+        assert "Successfully removed database" in remove_result.stdout, "Database wasn't removed successfully"
+        assert not os.path.exists(dest_db_path), "Database file wasn't deleted"
+        
+        print("Command line interface test passed!")
+        
+    finally:
+        # Clean up
+        if os.path.exists(datasets_dir):
+            shutil.rmtree(datasets_dir)
