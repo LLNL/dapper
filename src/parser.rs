@@ -81,16 +81,21 @@ lazy_static::lazy_static! {
             arguments: (argument_list) @arg_list
         )
         (function_declarator
-            declarator: (identifier) @function_name
+            declarator: (identifier) @function_declarator
             parameters: (parameter_list) @function_arg_list
         )
         "#
     ).expect("Error creating query");
 }
 
-pub fn extract_function_calls(file_path: &str) -> (Vec<String>, Vec<String>) {
-    let mut function_calls = Vec::new();
+pub fn extract_function_calls(file_path: &str) -> (Vec<String>, Vec<String>, Vec<String>, Vec<String>) {
+    let mut function_names = Vec::new();
     let mut function_args = Vec::new();
+
+    // let mut function_names: Vec<String>  = Vec::new();
+    // let mut function_calls = Vec::new();
+    let mut function_declarators: Vec<String> = Vec::new();
+    let mut function_decl_args: Vec<String> = Vec::new();
 
     let mut parser = Parser::new();
     parser
@@ -101,7 +106,7 @@ pub fn extract_function_calls(file_path: &str) -> (Vec<String>, Vec<String>) {
         Ok(content) => content,
         Err(e) => {
             eprintln!("Error reading file {}: {}", file_path, e);
-            return (function_calls, function_args);
+            return (function_names, function_args, function_declarators, function_decl_args);
         }
     };
     let tree = parser.parse(&source_code, None).unwrap();
@@ -114,7 +119,7 @@ pub fn extract_function_calls(file_path: &str) -> (Vec<String>, Vec<String>) {
         for capture in m.captures {
             let node = capture.node;
             let capture_name = FUNCTION_CALL_QUERY.capture_names()[capture.index as usize];
-            let include_name = match node.utf8_text(source_code.as_bytes()) {
+            let capture_text = match node.utf8_text(source_code.as_bytes()) {
                 Ok(text) => text.to_string(),
                 Err(e) => {
                     eprintln!(
@@ -124,15 +129,19 @@ pub fn extract_function_calls(file_path: &str) -> (Vec<String>, Vec<String>) {
                     continue;
                 }
             };
-            match capture_name {
-                "function_name" => function_calls.push(include_name),
-                "arg_list" | "function_arg_list" => function_args.push(include_name),
-                _ => {}
+            if !capture_text.is_empty(){
+                match capture_name {
+                    "function_name" => function_names.push(capture_text),
+                    "arg_list" => function_args.push(capture_text),
+                    "function_declarator" => function_declarators.push(capture_text),
+                    "function_arg_list" => function_decl_args.push(capture_text),
+                    _ => {}
+                }
             }
         }
     }
 
-    (function_calls, function_args)
+    (function_names, function_args, function_declarators, function_decl_args)
 }
 
 #[cfg(test)]
@@ -147,8 +156,11 @@ mod tests {
     }
     #[test]
     fn test_extract_function_calls() {
-        let (function_calls, function_args) = extract_function_calls("tests/test_files/test.cpp");
-        assert_eq!(function_calls, vec!["main"]);
-        assert_eq!(function_args, vec!["(int argc, char* argv[])"]);
+        let (function_names, function_args, function_declarators, function_decl_arg_list) = extract_function_calls("tests/test_files/test2.cpp");
+        assert_eq!(function_names, vec!["setprecision", "max", "min"]);
+        assert_eq!(function_args, vec!["(2)", "(max_completion_time,ps[i].ct)", "(min_arrival_time,ps[i].at)"]);
+        assert_eq!(function_declarators, vec!["main"]);
+        assert_eq!(function_decl_arg_list, vec!["()"]);
+
     }
 }

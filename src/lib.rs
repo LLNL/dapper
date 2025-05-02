@@ -20,6 +20,8 @@ pub fn run(arg_path: &str) {
     if md.is_file() {
         // Single file case, no need for parallelism
         parser::extract_includes(arg_path);
+        let (function_calls, function_args, declared_functions, declared_function_args) = parser::extract_function_calls(arg_path);
+        println!("\n function_calls = {:?} \n function_args = {:?} \n declared_functions = {:?} \n declared_function_args = {:?}\n", function_calls, function_args, declared_functions, declared_function_args);
     } else if md.is_dir() {
         let walker = WalkDir::new(arg_path).into_iter();
         let files: Vec<_> = walker::collect_files(walker);

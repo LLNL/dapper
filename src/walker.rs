@@ -22,7 +22,7 @@ pub fn process_files(files: Vec<DirEntry>) {
 
     let mut database_dir =
         get_base_directory().expect("Unable to get the user's local data directory");
-    database_dir.push("LinuxPackageDB.db");
+    database_dir.push("ubuntu-noble-v1.db");
 
     let conn = open_database(database_dir).expect("Failed to open database");
     let mut stmt = prepare_statement(
@@ -34,11 +34,14 @@ pub fn process_files(files: Vec<DirEntry>) {
     // Use Rayon to process files in parallel -- need to share the maps between threads
     let system_include_map = Mutex::new(HashMap::new());
     let user_include_map = Mutex::new(HashMap::new());
+    let function_call_map = Mutex::new(HashMap::new());
 
     files.par_iter().for_each(|entry| {
         let (system_includes, user_includes) =
-            crate::parser::extract_includes(entry.path().to_str().unwrap());
+            crate::parser::extract_includes(entry.path().to_str().unwrap()); // TODO: add logic here to also extract function calls, function args.
 
+        let (function_names, function_args, function_declarators, function_decl_arg_list) =
+            crate::parser::extract_function_calls(entry.path().to_str().unwrap());
         {
             let mut system_include_map = system_include_map.lock().unwrap();
             for include in system_includes {
@@ -61,16 +64,30 @@ pub fn process_files(files: Vec<DirEntry>) {
                     .push(entry.path().display().to_string());
             }
         }
+
+        {
+            let mut function_call_map = function_call_map.lock().unwrap();
+            for function_name in function_names {
+                function_call_map
+                    .entry(function_name)
+                    .or_insert_with(Vec::new)
+                    .push(entry.path().display().to_string());
+            }
+        }
+
     });
 
     let system_include_map = system_include_map.lock().unwrap();
     let user_include_map = user_include_map.lock().unwrap();
+    let function_call_map = function_call_map.lock().unwrap();
 
     let unique_system_includes: Vec<_> = system_include_map.keys().cloned().collect();
     let unique_user_includes: Vec<_> = user_include_map.keys().cloned().collect();
+    let unique_function_calls: Vec<_> = function_call_map.keys().cloned().collect();
 
     println!("Unique System Includes: {:#?}", unique_system_includes);
     println!("Unique User Includes: {:#?}", unique_user_includes);
+    println!("Unique Function Calls: {:#?}", unique_function_calls);
 
     for include in unique_system_includes
         .iter()
@@ -95,6 +112,33 @@ pub fn process_files(files: Vec<DirEntry>) {
         }
     }
 
+    for (function_name, files) in function_call_map.iter() {
+        for file in files {
+            let file_lower = file.rsplit('/').next().unwrap().to_lowercase();
+            // println!("Debug: file_lower = {}", file_lower);
+            let matching_packages: Vec<_> = query_package_files(&mut stmt, &file_lower)
+                .expect("Failed to query package files")
+                .into_iter()
+                .filter_map(|result| {
+                    let (package_name, file_path) = result;
+                    let path_buf = std::path::Path::new(&file_path);
+                    // println!("Debug: path_buf = {} , file_lower = {}", path_buf.to_str().unwrap().to_lowercase(), file_lower);
+                    if path_buf.ends_with(&file_lower) {
+                        return Some((package_name, file_path));
+                    }
+                    None
+                })
+                .collect();
+    
+            if !matching_packages.is_empty() {
+                println!(
+                    "File: {} (Function: {}) -> Packages: {:?}",
+                    file, function_name, matching_packages
+                );
+            }
+        }
+    }
+
     // print size of each map
     println!(
         "System Unique Include Map Size: {}",
@@ -103,6 +147,10 @@ pub fn process_files(files: Vec<DirEntry>) {
     println!(
         "User Unique Include Map Size: {}",
         unique_user_includes.len()
+    );
+    println!(
+        "Function Call Unique Map Size: {}",
+        unique_function_calls.len()
     );
 }
 
