@@ -36,6 +36,7 @@ import methodtools
 #But can potentially just install python-magic which will use the underlying linux utilities
 import magic
 
+from datetime import datetime
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from http import HTTPStatus
@@ -227,6 +228,33 @@ class PyPIDatabase:
                     ON packages.id = package_files.package_id
             """
             cursor.execute(create_view_cmd)
+
+            #Metadata information about table
+            create_table_cmd = """
+                CREATE TABLE
+                IF NOT EXISTS dataset_version(
+                    version INTEGER PRIMARY KEY,
+                    format TEXT,
+                    timestamp INTEGER
+                )
+            """
+            cursor.execute(create_table_cmd)
+
+
+    @_requires_connection
+    def set_version(self, version:int) -> None:
+        with self.get_cursor() as cursor:
+            #We only want a single version information row, so if the table already has values, clear it
+            metadata_remove_cmd = """
+                DELETE FROM dataset_version
+            """
+            cursor.execute(metadata_remove_cmd)
+
+            metadata_add_cmd = """
+                INSERT INTO dataset_version(version, format, timestamp)
+                VALUES (?, "PyPI", ?)
+            """
+            cursor.execute(metadata_add_cmd, (version, int(datetime.now().timestamp())))
 
     @_requires_connection
     def get_cursor(self) -> TransactionCursor:
@@ -500,6 +528,11 @@ def main():
         type=Path, default=Path('PyPIPackageDB.db'),
         help='Path of output (database) file to create. Defaults to "PyPIPackageDB.db" in the current working directory',
     )
+    parser.add_argument(
+        '-v', '--version',
+        type=int, required=True,
+        help='Version marker for the database to keep track of changes'
+    )
     args = parser.parse_args()
 
     #Ask it to send the response as JSON
@@ -568,6 +601,8 @@ def main():
                         if not package_details:
                             continue
                         db.add_package(package_details)
+
+        db.set_version(args.version)
 
 if __name__ == '__main__':
     main()
