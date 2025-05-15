@@ -31,11 +31,13 @@ Discussions = "https://github.com/LLNL/dapper/discussions"
 
 [project.optional-dependencies]
 test = ["pytest"]
-dev = ["build", "pre-commit"]
+dev = ["build", 
+        "pre-commit",
+        "pyxdg",
+        "tomlkit",
+        "pandas"
+        ]
 
-[dependency-groups]
-test = ["pytest"]
-dev = ["build", "pre-commit"]
 
 [tool.setuptools.packages.find]
 include = ["dapper_python", "dapper_python.*"]

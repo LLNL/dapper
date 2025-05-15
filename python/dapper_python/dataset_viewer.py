@@ -2,15 +2,12 @@ import os
 import sys
 import platform
 import sqlite3
-import logging
-import argparse
-import shutil
 from pathlib import Path
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Union, Tuple
-import toml
+import tomlkit
 import pandas as pd
 from contextlib import contextmanager
 
@@ -90,7 +87,7 @@ class DatasetCatalog:
         toml_path = DatasetCatalog._find_toml(app_name, file_path)   
 
         # load filepath from dataset_info.toml
-        cfg = toml.load(toml_path)
+        cfg = tomlkit.load(toml_path)
 
         # buld a list of dataset meta
         self.dataset_metas: List[DatasetMeta] = []

@@ -3,7 +3,7 @@ import platform
 import pytest
 from pathlib import Path
 import tempfile
-import toml
+import tomlkit
 from unittest.mock import patch, MagicMock
 import sqlite3
 from datetime import datetime
@@ -12,36 +12,7 @@ import pandas as pd
 import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'dapper_python')))
-from dataset_viewer import DatasetCatalog, SQLiteReader
-
-
-
-
-try:
-    # Try to import both classes
-    from dataset_viewer import DatasetCatalog, DatasetMeta
-except ImportError:
-    # If DatasetMeta doesn't exist in the module, only import DatasetCatalog
-    from dataset_viewer import DatasetCatalog
-    
-    # And create a mock DatasetMeta class
-    class DatasetMeta:
-        def __init__(self, name, version, format, timestamp, categories, filepath):
-            self.name = name
-            self.version = version
-            self.format = format
-            self.timestamp = timestamp
-            self.categories = categories
-            self.filepath = filepath
-class DatasetMeta:
-    def __init__(self, name, version, format, timestamp, categories, filepath):
-        self.name = name
-        self.version = version
-        self.format = format
-        self.timestamp = timestamp
-        self.categories = categories
-        self.filepath = filepath
-
+from dataset_viewer import DatasetCatalog, SQLiteReader, DatasetMeta
 
 class TestDatasetCatalog:
     """Test suite for the DatasetCatalog class"""
@@ -73,7 +44,7 @@ class TestDatasetCatalog:
         """Create a temporary TOML file with sample content"""
         with tempfile.NamedTemporaryFile(suffix=".toml", delete=False) as tmp:
             toml_path = tmp.name
-            toml_content = toml.dumps(sample_toml_content)
+            toml_content = tomlkit.dumps(sample_toml_content)
             tmp.write(toml_content.encode('utf-8'))
         
         yield toml_path
@@ -104,7 +75,7 @@ class TestDatasetCatalog:
         with tempfile.NamedTemporaryFile(suffix="dataset_info.toml", delete=False) as tmp:
             path = Path(tmp.name)
             
-            with patch.object(DatasetCatalog, '_find_toml', return_value=path) as mock_find:
+            with patch.object(Path, 'is_file', return_value=True):
                 result = DatasetCatalog._find_toml(file_path=str(path))
                 assert result == path
 
@@ -120,11 +91,9 @@ class TestDatasetCatalog:
             toml_path = app_dir / "dataset_info.toml"
             toml_path.touch()
             
-            with patch.object(DatasetCatalog, 'get_app_data_dir', return_value=str(app_dir)):
-                # This is a workaround since we're using a mock implementation
+            with patch.object(DatasetCatalog, 'get_app_data_dir', return_value=str(app_dir)), \
+                 patch.object(Path, 'is_file', return_value=True):
                 result = DatasetCatalog._find_toml(app_name="dapper")
-                
-                # In the real implementation, this should return the toml_path
                 assert isinstance(result, Path)
 
     def test_find_toml_not_found(self):
@@ -132,13 +101,15 @@ class TestDatasetCatalog:
         with tempfile.TemporaryDirectory() as temp_dir:
             non_existent_path = Path(temp_dir) / "non_existent.toml"
             
-            with patch.object(DatasetCatalog, 'get_app_data_dir', return_value=str(temp_dir)):
+            with patch.object(DatasetCatalog, 'get_app_data_dir', return_value=str(temp_dir)), \
+                 patch.object(Path, 'is_file', return_value=False):
                 with pytest.raises(FileNotFoundError):
                     DatasetCatalog._find_toml(file_path=str(non_existent_path))
 
-    def test_init_loads_dataset_metas(self, mock_toml_file, sample_toml_content):
+    def test_init_loads_dataset_metas(self, sample_toml_content):
         """Test that __init__ correctly loads dataset metadata from TOML"""
-        with patch.object(DatasetCatalog, '_find_toml', return_value=Path(mock_toml_file)):
+        with patch.object(DatasetCatalog, '_find_toml'), \
+             patch('tomlkit.load', return_value=sample_toml_content):
             catalog = DatasetCatalog()
             
             # Check we have the right number of datasets
@@ -149,9 +120,10 @@ class TestDatasetCatalog:
             for name in sample_toml_content["datasets"].keys():
                 assert name in dataset_names
 
-    def test_list_dataset_names(self, mock_toml_file):
+    def test_list_dataset_names(self, sample_toml_content):
         """Test list_dataset_names returns all dataset names"""
-        with patch.object(DatasetCatalog, '_find_toml', return_value=Path(mock_toml_file)):
+        with patch.object(DatasetCatalog, '_find_toml'), \
+             patch('tomlkit.load', return_value=sample_toml_content):
             catalog = DatasetCatalog()
             names = catalog.list_dataset_names()
             
@@ -159,21 +131,23 @@ class TestDatasetCatalog:
             assert "test_dataset" in names
             assert "another_dataset" in names
 
-    def test_len(self, mock_toml_file):
+    def test_len(self, sample_toml_content):
         """Test __len__ returns the correct number of datasets"""
-        with patch.object(DatasetCatalog, '_find_toml', return_value=Path(mock_toml_file)):
+        with patch.object(DatasetCatalog, '_find_toml'), \
+             patch('tomlkit.load', return_value=sample_toml_content):
             catalog = DatasetCatalog()
             assert len(catalog) == 2
 
-    def test_iter(self, mock_toml_file):
+    def test_iter(self, sample_toml_content):
         """Test __iter__ correctly iterates over dataset metas"""
-        with patch.object(DatasetCatalog, '_find_toml', return_value=Path(mock_toml_file)):
+        with patch.object(DatasetCatalog, '_find_toml'), \
+             patch('tomlkit.load', return_value=sample_toml_content):
             catalog = DatasetCatalog()
             
             metas = list(catalog)
             assert len(metas) == 2
             
-            # Instead of checking the class type, check that each item has the expected attributes
+            # Check that each item has the expected attributes
             for meta in metas:
                 assert hasattr(meta, 'name')
                 assert hasattr(meta, 'version')
@@ -187,9 +161,10 @@ class TestDatasetCatalog:
             assert "test_dataset" in names
             assert "another_dataset" in names
 
-    def test_getitem_existing_name(self, mock_toml_file):
+    def test_getitem_existing_name(self, sample_toml_content):
         """Test __getitem__ returns correct meta for existing name"""
-        with patch.object(DatasetCatalog, '_find_toml', return_value=Path(mock_toml_file)):
+        with patch.object(DatasetCatalog, '_find_toml'), \
+             patch('tomlkit.load', return_value=sample_toml_content):
             catalog = DatasetCatalog()
             
             meta = catalog["test_dataset"]
@@ -197,17 +172,19 @@ class TestDatasetCatalog:
             assert meta.version == 1
             assert meta.format == "sqlite"
 
-    def test_getitem_nonexistent_name(self, mock_toml_file):
+    def test_getitem_nonexistent_name(self, sample_toml_content):
         """Test __getitem__ raises KeyError for non-existent name"""
-        with patch.object(DatasetCatalog, '_find_toml', return_value=Path(mock_toml_file)):
+        with patch.object(DatasetCatalog, '_find_toml'), \
+             patch('tomlkit.load', return_value=sample_toml_content):
             catalog = DatasetCatalog()
             
             with pytest.raises(KeyError):
                 catalog["non_existent_dataset"]
 
-    def test_validate_filepaths_all_exist(self, mock_toml_file):
+    def test_validate_filepaths_all_exist(self, sample_toml_content):
         """Test validate_filepaths when all files exist"""
-        with patch.object(DatasetCatalog, '_find_toml', return_value=Path(mock_toml_file)):
+        with patch.object(DatasetCatalog, '_find_toml'), \
+             patch('tomlkit.load', return_value=sample_toml_content):
             catalog = DatasetCatalog()
             
             # Patch Path.exists to return True for all paths
@@ -215,9 +192,10 @@ class TestDatasetCatalog:
                 # Should not raise an exception
                 catalog.validate_filepaths()
 
-    def test_validate_filepaths_missing_files(self, mock_toml_file):
+    def test_validate_filepaths_missing_files(self, sample_toml_content):
         """Test validate_filepaths raises FileNotFoundError when files are missing"""
-        with patch.object(DatasetCatalog, '_find_toml', return_value=Path(mock_toml_file)):
+        with patch.object(DatasetCatalog, '_find_toml'), \
+             patch('tomlkit.load', return_value=sample_toml_content):
             catalog = DatasetCatalog()
             
             # Patch Path.exists to return False for all paths
@@ -225,9 +203,10 @@ class TestDatasetCatalog:
                 with pytest.raises(FileNotFoundError):
                     catalog.validate_filepaths()
 
-    def test_summary(self, mock_toml_file, capsys):
+    def test_summary(self, sample_toml_content, capsys):
         """Test that summary prints expected output"""
-        with patch.object(DatasetCatalog, '_find_toml', return_value=Path(mock_toml_file)):
+        with patch.object(DatasetCatalog, '_find_toml'), \
+             patch('tomlkit.load', return_value=sample_toml_content):
             catalog = DatasetCatalog()
             catalog.summary()
             
@@ -431,38 +410,8 @@ class TestSQLiteReader:
         assert columns['email'] == 'TEXT'
         assert columns['age'] == 'INTEGER'
     
-    def test_get_table_info(self, patched_reader, monkeypatch):
-        """Test get_table_info with a patched function to handle the missing return"""
-        
-        # Create a patched get_table_info that returns result
-        def patched_get_table_info(self, dataset_name, table_name):
-            result = {}
-            
-            # Get column information
-            columns = self.get_table_schema(dataset_name, table_name)
-            result['columns'] = columns
-            
-            # Get row count
-            count_query = f"SELECT COUNT(*) as count FROM {table_name}"
-            count_result = self.execute_query(dataset_name, count_query)
-            result['row_count'] = count_result[0]['count']
-            
-            # Get index information
-            index_query = f"PRAGMA index_list({table_name})"
-            indexes = self.execute_query(dataset_name, index_query)
-            result['indexes'] = [dict(idx) for idx in indexes]
-            
-            # Get sample data (max 5 rows)
-            sample_query = f"SELECT * FROM {table_name} LIMIT 5"
-            sample_data = self.execute_query(dataset_name, sample_query)
-            result['sample_data'] = [dict(row) for row in sample_data]
-            
-            return result  # Add missing return
-        
-        # Apply the patch
-        monkeypatch.setattr(SQLiteReader, "get_table_info", patched_get_table_info)
-        
-        # Now test
+    def test_get_table_info(self, patched_reader):
+        """Test get_table_info returns comprehensive table information"""
         info = patched_reader.get_table_info("test_db", "posts")
         
         # Check structure
