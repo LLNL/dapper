@@ -37,10 +37,3 @@ impl Database {
     }
 }
 
-pub fn query_python_package_imports(
-    stmt: &mut rusqlite::Statement,
-    import_name: &str,
-) -> Result<Vec<String>> {
-    stmt.query_map(params![import_name], |row| row.get(0))?
-        .collect()
-}
