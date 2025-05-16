@@ -3,31 +3,31 @@
 //
 // SPDX-License-Identifier: MIT
 
-use rusqlite::{params, Connection, Result};
+use rusqlite;
+use rusqlite::{CachedStatement, Connection, Statement};
 use std::path::Path;
 
-pub fn open_database<P: AsRef<Path>>(path: P) -> Result<Connection> {
-    Connection::open(path)
+pub struct Database {
+    connection: Connection,
 }
 
-pub fn prepare_statement<'a>(conn: &'a Connection, sql: &str) -> Result<rusqlite::Statement<'a>> {
-    conn.prepare(sql)
-}
+impl Database {
+    ///Create database object from sqlite file at the provided path
+    pub fn new(path: &Path) -> rusqlite::Result<Database> {
+        let connection = Connection::open(path)?;
+        Ok(Database { connection })
+    }
 
-// file_name should be normalized according to a few rules, including lower case
-// functions for normalizing e.g. so files, include paths, etc will be provided in another module
-pub fn query_linux_package_files(
-    stmt: &mut rusqlite::Statement,
-    file_name: &str,
-) -> Result<Vec<(String, String)>> {
-    stmt.query_map(params![file_name], |row| Ok((row.get(0)?, row.get(1)?)))?
-        .collect()
-}
+    /// Create a prepared statement for the database from the given SQL statement string
+    pub fn prepare_statement(&self, sql: &str) -> rusqlite::Result<Statement> {
+        self.connection.prepare(sql)
+    }
 
-pub fn query_python_package_imports(
-    stmt: &mut rusqlite::Statement,
-    import_name: &str,
-) -> Result<Vec<String>> {
-    stmt.query_map(params![import_name], |row| row.get(0))?
-        .collect()
+    /// Creates a prepared statement from the given SQL statement string
+    ///
+    /// Caches the result so that when no longer in use, it can be used again
+    /// Should improve performance by skipping repeatedly compiling statements used multiple times
+    pub fn prepare_cached_statement(&self, sql: &str) -> rusqlite::Result<CachedStatement> {
+        self.connection.prepare_cached(sql)
+    }
 }
