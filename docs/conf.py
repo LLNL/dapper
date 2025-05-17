@@ -59,3 +59,9 @@ napoleon_numpy_docstring = True
 #html_favicon = html_logo
 html_sidebars = {"**": ["globaltoc.html", "relations.html", "searchbox.html"]}
 html_static_path = ["_static"]
+
+# -------------------------------------------------------------------
+# Make dataset_list.toml available as a static file at the site root
+# https://surfactant.readthedocs.io/en/latest/dataset_list.toml
+# -------------------------------------------------------------------
+html_extra_path = ["dataset_list.toml"]
