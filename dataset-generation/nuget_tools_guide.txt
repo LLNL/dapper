@@ -1,0 +1,95 @@
+# NuGet Package Management Tools - User Guide
+
+This guide explains how to use the NuGet package scraper and updater tools to build and maintain a local database of NuGet packages.
+
+## Files
+
+- `Create_NUGET_DB.py` - Creates the initial database and performs full scans
+- `nuget_updater.py` - Updates an existing database with new and changed packages
+
+## Initial Setup
+
+1. Ensure you have Python 3.8+ installed
+2. Install required libraries:
+
+pip install httpx asyncio tqdm
+
+3. Save the scripts as:
+   - `Create_NUGET_DB.py` - For the initial scraper
+   - `nuget_updater.py` - For the updater
+
+## Creating the Initial Database
+
+To create your initial database of NuGet packages:
+
+python Create_NUGET_DB.py --output NugetDB.db --concurrency 500
+
+Options:
+- `--output`: Specify database file path (default: NugetPackageDB.db)
+- `--concurrency`: Set maximum concurrent requests (default: 500)
+- `--max-concurrency`: Maximum adaptive concurrency limit (default: 1000)
+- `--from-date`: Only process packages newer than this date (ISO format)
+- `--batch-size`: Number of packages per batch (default: 200)
+- `--fixed-concurrency`: Disable adaptive concurrency
+- `--test-api`: Test API connectivity before running
+
+The initial scraping can take several hours depending on your connection and how many packages you want to include.
+
+## Updating the Database
+
+Once you have an initial database, use the updater for efficient maintenance:
+
+python nuget_updater.py --db-path NugetDB.db
+
+Options:
+- `--db-path`: Path to your database file (default: NugetPackageDB.db)
+- `--concurrency`: Maximum concurrent requests (default: 200)
+- `--batch-size`: Number of packages per batch (default: 100)
+- `--from-date`: Override automatic date detection (ISO format)
+- `--full-refresh`: Check all packages regardless of date
+
+## Recommended Usage Pattern
+
+1. **Initial Setup** - Run the scraper once to create your database:
+   python Create_NUGET_DB.py --output NugetDB.db --from-date "2022-01-01T00:00:00Z"
+
+2. **Regular Updates** - Schedule weekly updates:
+   python nuget_updater.py --db-path NugetDB.db
+
+3. **Occasional Full Refresh** - Every few months for consistency:
+   python nuget_updater.py --db-path NugetDB.db --full-refresh
+
+## Performance Tips
+
+- For faster initial scraping, increase concurrency: `--concurrency 800`
+- For slower but more stable operation: `--fixed-concurrency --concurrency 300`
+- On machines with limited memory, use smaller batch sizes: `--batch-size 50`
+- The updater script is much faster than running a full scrape each time
+
+## Database Schema
+
+The created database includes these key tables:
+- `nuget_packages` - Package metadata
+- `nuget_package_artifacts` - DLLs in each package
+- `join_table` - View linking packages and artifacts
+
+## Automation Examples
+
+### Daily Update Script (Linux/Mac)
+
+Create a file named `update_nuget_db.sh`:
+
+#!/bin/bash
+python /path/to/nuget_updater.py --db-path /path/to/NugetDB.db >> update_log.txt 2>&1
+
+Schedule with cron:
+0 2 * * * /path/to/update_nuget_db.sh
+
+### Weekly Update Script (Windows)
+
+Create a file named `update_nuget.bat`:
+
+@echo off
+python C:\path\to\nuget_updater.py --db-path C:\path\to\NugetDB.db
+
+Schedule with Task Scheduler to run weekly.
