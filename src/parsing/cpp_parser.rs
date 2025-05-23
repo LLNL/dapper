@@ -173,10 +173,12 @@ impl LibParser for CPPParser<'_> {
             .collect()
     }
 
-    fn extract_sys_calls(file_path: &Path) -> HashSet<LangInclude>
+    fn extract_sys_calls(_file_path: &Path) -> HashSet<LangInclude>
     where
         Self: Sized,
     {
+        //Argument _file_path prefixed with underscore to prevent complaints from cargo
+        //Rename to "file_path" when implementing
         HashSet::new()
     }
 }
