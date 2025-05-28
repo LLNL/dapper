@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::fs;
 
+#[deprecated(note = "Please use the SQLite databases instead")]
 pub fn read_contents_file(file_path: &str) -> HashMap<String, Vec<(String, String)>> {
     let mut package_map = HashMap::new();
     let contents =
