@@ -12,6 +12,11 @@ authors = [
 license = { text = "MIT License" }
 readme = "README.md"
 requires-python = ">=3.6"
+dependencies = [
+    "tomlkit",
+    "requests>=2.25.0", 
+    "tqdm>=4.60.0"
+]
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
@@ -31,13 +36,11 @@ Discussions = "https://github.com/LLNL/dapper/discussions"
 
 [project.optional-dependencies]
 test = ["pytest"]
-dev = ["build", 
-        "pre-commit",
-        "pyxdg",
-        "tomlkit",
-        "pandas"
-        ]
+dev = ["build", "pre-commit"]
 
+[dependency-groups]
+test = ["pytest"]
+dev = ["build", "pre-commit"]
 
 [tool.setuptools.packages.find]
 include = ["dapper_python", "dapper_python.*"]
