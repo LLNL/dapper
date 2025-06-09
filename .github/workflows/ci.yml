@@ -39,7 +39,9 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Run Clippy
-      run: cargo clippy -- -D warnings
+      run: |
+        cargo clippy --version
+        cargo clippy -- -D warnings
 
   fmt:
     runs-on: ubuntu-latest
@@ -47,7 +49,9 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Check formatting
-      run: cargo fmt -- --check
+      run: |
+        cargo fmt --version
+        cargo fmt -- --check
 
   python-tests:
     runs-on: ubuntu-latest
