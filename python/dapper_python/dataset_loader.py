@@ -4,14 +4,13 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Dict, List, Any, Optional
 import tomlkit
-import sqlite3
 
 
 
 @dataclass
 class DatasetMeta:
     """Dataset metadata matching Rust Dataset struct"""
-    version: int  # Changed from str to int to match Rust
+    version: int 
     format: str
     timestamp: datetime
     categories: List[str]
@@ -28,7 +27,6 @@ class DatasetCatalog:
         self.app_name = app_name
         self.dataset_metas: Dict[str, DatasetMeta] = {}
         
-        # Always try to load from local dataset_info.toml first
         self._load_from_dataset_info_toml(file_path)
         
     
@@ -59,24 +57,30 @@ class DatasetCatalog:
             print(f"Error loading dataset_info.toml: {e}")
     
     def _find_dataset_info_toml(self, file_path: Optional[str] = None) -> Path:
-        """Find dataset_info.toml file"""
         if file_path:
+            # If directory provided, append filename
             path = Path(file_path)
-            if path.is_file():
+            if path.is_dir():
+                candidate = path / "dataset_info.toml"
+                if candidate.exists():
+                    return candidate
+            # If file provided directly
+            elif path.is_file():
                 return path
-            # Check if it's a directory containing dataset_info.toml
-            candidate = path / "dataset_info.toml"
-            if candidate.exists():
-                return candidate
             raise FileNotFoundError(f"Could not find dataset_info.toml at {file_path}")
-
-        # Look in app data directory
+        
+        # Default: look in current directory first, then app data
+        current_dir = Path(".") / "dataset_info.toml"
+        if current_dir.exists():
+            return current_dir
+            
+        # Fallback to app data directory
         app_dir = Path(self.get_app_data_dir(self.app_name))
         candidate = app_dir / "dataset_info.toml"
         if candidate.exists():
             return candidate
-
-        raise FileNotFoundError(f"Could not find dataset_info.toml in {app_dir}")
+        
+        raise FileNotFoundError("Could not find dataset_info.toml")
     
 
     
@@ -89,28 +93,23 @@ class DatasetCatalog:
         system = platform.system()
         
         if system == 'Linux':
-            # Linux: $XDG_DATA_HOME/app_name or $HOME/.local/share/app_name
             xdg_data_home = os.environ.get('XDG_DATA_HOME')
             if xdg_data_home:
                 return os.path.join(xdg_data_home, app_name)
             else:
                 return os.path.join(os.path.expanduser('~'), '.local', 'share', app_name)
         
-        elif system == 'Darwin':  # macOS
-            # macOS: $HOME/Library/Application Support/app_name
+        elif system == 'Darwin':
             return os.path.join(os.path.expanduser('~'), 'Library', 'Application Support', app_name)
         
         elif system == 'Windows':
-            # Windows: %APPDATA%\\app_name
             appdata = os.environ.get('APPDATA')
             if appdata:
                 return os.path.join(appdata, app_name)
             else:
-                # Fallback if APPDATA is not defined
                 return os.path.join(os.path.expanduser('~'), 'AppData', 'Roaming', app_name)
         
         else:
-            # Unknown platform, use a reasonable default
             return os.path.join(os.path.expanduser('~'), f'.{app_name}')
     
     def get_available_datasets(self, category: Optional[str] = None) -> List[str]:
@@ -129,13 +128,5 @@ class DatasetCatalog:
     def get_dataset_info(self, dataset_name: str) -> Optional[DatasetMeta]:
         """Get full metadata for a dataset"""
         return self.dataset_metas.get(dataset_name)
-
-def load_dataset(self, dataset_name: str) -> sqlite3.Connection:
-    """Load/open a dataset database for querying"""
-    db_path = self.get_dataset_path(dataset_name)
-    if not db_path or not db_path.exists():
-        raise FileNotFoundError(f"Dataset '{dataset_name}' not found")
-
-    return sqlite3.connect(str(db_path))
     
     

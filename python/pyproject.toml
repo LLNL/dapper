@@ -13,9 +13,7 @@ license = { text = "MIT License" }
 readme = "README.md"
 requires-python = ">=3.6"
 dependencies = [
-    "tomlkit",
-    "requests>=2.25.0", 
-    "tqdm>=4.60.0"
+    "tomlkit"
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -34,8 +32,6 @@ Discussions = "https://github.com/LLNL/dapper/discussions"
 "Issue Tracker" = "https://github.com/LLNL/dapper/issues"
 "Source Code" = "https://github.com/LLNL/dapper"
 
-[project.scripts]
-dapper-dataset = "dapper_python.dataset_loader:main"
 
 [project.optional-dependencies]
 test = ["pytest"]
