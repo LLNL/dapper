@@ -129,4 +129,14 @@ class DatasetCatalog:
         """Get full metadata for a dataset"""
         return self.dataset_metas.get(dataset_name)
     
+    def load_dataset(self, dataset_name: str) -> sqlite3.Connection:
+        """Load/open a dataset database for READ-ONLY querying"""
+        db_path = self.get_dataset_path(dataset_name)
+        if not db_path or not db_path.exists():
+            raise FileNotFoundError(f"Dataset '{dataset_name}' not found")
+        
+        # Open in read-only mode
+        uri = f"file:{db_path}?mode=ro"
+        return sqlite3.connect(uri, uri=True)
+    
     
