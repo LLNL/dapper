@@ -13,7 +13,7 @@ use rusqlite::params;
 use tree_sitter::{Parser, Query, QueryCursor};
 
 use super::parser::{par_file_iter, LibProcessor};
-use super::parser::{LangInclude, LibParser, SourceFinder};
+use super::parser::{LangInclude, LibParser, SourceFinder, SystemProgram};
 
 use crate::database::Database;
 
@@ -37,6 +37,18 @@ lazy_static::lazy_static! {
         )
         (preproc_include
             (string_literal) @user_include
+        )
+        "#
+    ).expect("Error creating query");
+}
+
+lazy_static::lazy_static! {
+    static ref SYS_CALL_QUERY: Query = Query::new(
+        &tree_sitter_cpp::LANGUAGE.into(),
+        r#"
+        (call_expression
+            function: (identifier) @function_name
+            arguments: (argument_list) @arg_list
         )
         "#
     ).expect("Error creating query");
@@ -105,19 +117,122 @@ impl<'db> CPPParser<'db> {
         includes
     }
 
-    fn process_files<T>(&self, file_paths: T) -> HashMap<CPPInclude, Vec<String>>
+    pub fn extract_sys_calls(file_path: &Path) -> HashSet<LangInclude> {
+        let mut calls = HashSet::new();
+
+        let source_code = match fs::read_to_string(file_path) {
+            Ok(content) => content,
+            Err(e) => {
+                eprintln!("Error reading file {}: {}", file_path.display(), e);
+                return calls;
+            }
+        };
+
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_cpp::LANGUAGE.into())
+            .expect("Error loading C++ grammar");
+        let tree = parser.parse(&source_code, None).unwrap();
+        let root_node = tree.root_node();
+
+        let mut query_cursor = QueryCursor::new();
+        let mut matches = query_cursor.matches(&SYS_CALL_QUERY, root_node, source_code.as_bytes());
+
+        while let Some(m) = matches.next() {
+            let mut name = None;
+            let mut args = None;
+            for capture in m.captures {
+                let node = capture.node;
+                let capture_name = SYS_CALL_QUERY.capture_names()[capture.index as usize];
+                let capture_text = match node.utf8_text(source_code.as_bytes()) {
+                    Ok(text) => text.to_string(),
+                    Err(_) => continue,
+                };
+                match capture_name {
+                    "function_name" => name = Some(capture_text),
+                    "arg_list" => args = Some(capture_text),
+                    _ => {}
+                }
+            }
+            if let (Some(f), Some(a)) = (name, args) {
+                // filter only genuine syscalls
+                if Self::is_likely_syscall(&f) {
+                    calls.insert(LangInclude::OS(SystemProgram::Application(f.clone())));
+                    let libs: Vec<String> = Self::extract_string_literals(&a).into_iter().collect();
+
+                    for lib in libs {
+                        for token in lib.split_whitespace() {
+                            // make sure that the strings being parsed could be pkg names and are not flags or file paths
+                            if !token.starts_with('-')
+                                && !token.starts_with('/')
+                                && !token.ends_with('/')
+                            {
+                                calls.insert(LangInclude::OS(SystemProgram::Application(
+                                    token.to_string(),
+                                )));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        calls
+    }
+
+    fn is_likely_syscall(func: &str) -> bool {
+        let lower = func.to_lowercase();
+        matches!(
+            lower.as_str(),
+            "open"
+                | "read"
+                | "write"
+                | "close"
+                | "system"
+                | "execlp"
+                | "perror"
+                | "execve"
+                | "fork"
+        )
+    }
+
+    fn extract_string_literals(s: &str) -> Vec<String> {
+        let mut out = Vec::new();
+        let mut chars = s.chars();
+        while let Some(c) = chars.next() {
+            if c == '"' {
+                let mut lit = String::new();
+                while let Some(n) = chars.next() {
+                    if n == '"' {
+                        break;
+                    }
+                    lit.push(n);
+                }
+                out.push(lit);
+            }
+        }
+        out
+    }
+
+    fn process_files<T>(&self, file_paths: T) -> HashMap<LangInclude, Vec<String>>
     where
         T: IntoIterator,
         T::Item: AsRef<Path>,
     {
         //Using Rayon for parallel processing associates wrapping set with Mutex for synchronization
         let global_includes: Mutex<HashSet<CPPInclude>> = Mutex::new(HashSet::new());
+        let global_sys_calls: Mutex<HashSet<LangInclude>> = Mutex::new(HashSet::new());
 
         par_file_iter(file_paths, |file_path| {
             let file_includes = Self::extract_includes(file_path);
             let mut global_includes = global_includes.lock().unwrap();
             for include in file_includes {
                 global_includes.insert(include);
+            }
+            drop(global_includes); //Explicitly drop the lock to avoid deadlocks
+            let file_sys_calls = Self::extract_sys_calls(file_path);
+            let mut global_sys_calls = global_sys_calls.lock().unwrap();
+            for sys_call in file_sys_calls {
+                global_sys_calls.insert(sys_call);
             }
         });
 
@@ -151,7 +266,30 @@ impl<'db> CPPParser<'db> {
             }
         }
 
-        global_include_map
+        let global_sys_calls = mem::take(&mut *global_sys_calls.lock().unwrap());
+        let mut global_sys_call_map: HashMap<LangInclude, Vec<String>> = HashMap::new();
+
+        for sys_call in global_sys_calls.into_iter() {
+            let func_name = match &sys_call {
+                LangInclude::OS(SystemProgram::Application(combined)) => {
+                    combined.split('(').next().unwrap().to_lowercase()
+                }
+                _ => continue,
+            };
+
+            if let Ok(libs) = query_db(&func_name) {
+                global_sys_call_map.insert(sys_call, libs);
+            }
+        }
+        // Merge both maps into a HashMap<LangInclude, Vec<String>>
+        let mut result: HashMap<LangInclude, Vec<String>> = HashMap::new();
+        for (inc, pkgs) in global_include_map {
+            result.insert(LangInclude::CPP(inc), pkgs);
+        }
+        for (call, pkgs) in global_sys_call_map {
+            result.insert(call, pkgs);
+        }
+        result
     }
 }
 
@@ -173,13 +311,11 @@ impl LibParser for CPPParser<'_> {
             .collect()
     }
 
-    fn extract_sys_calls(_file_path: &Path) -> HashSet<LangInclude>
+    fn extract_sys_calls(file_path: &Path) -> HashSet<LangInclude>
     where
         Self: Sized,
     {
-        //Argument _file_path prefixed with underscore to prevent complaints from cargo
-        //Rename to "file_path" when implementing
-        HashSet::new()
+        CPPParser::extract_sys_calls(file_path)
     }
 }
 
@@ -191,9 +327,6 @@ impl LibProcessor for CPPParser<'_> {
     {
         // fn process_files(&self, file_path: Vec<&str>) -> Vec<(LangInclude, Vec<String>)>{
         self.process_files(file_paths)
-            .into_iter()
-            .map(|(cpp_include, vec)| (LangInclude::CPP(cpp_include), vec))
-            .collect()
     }
 }
 
@@ -229,5 +362,33 @@ mod tests {
             .into_iter()
             .collect();
         assert_eq!(user_includes, exp_user_includes);
+    }
+    #[test]
+    fn test_extract_sys_calls_from_real_file() {
+        let test_file = Path::new("tests/test_files/test_sys_calls.cpp");
+        let calls = CPPParser::extract_sys_calls(test_file);
+
+        // Collect the extracted system call names
+        let mut found = HashSet::new();
+        for call in calls {
+            if let LangInclude::OS(SystemProgram::Application(name)) = call {
+                found.insert(name);
+            }
+        }
+
+        // Check that the expected system calls are found
+        assert!(
+            found.contains("system"),
+            "Expected to find 'system' syscall"
+        );
+        assert!(
+            found.contains("execlp"),
+            "Expected to find 'execlp' syscall"
+        );
+        // Should NOT contain unrelated functions
+        assert!(
+            !found.contains("custom_func"),
+            "Should not find 'custom_func'"
+        );
     }
 }
