@@ -10,7 +10,7 @@ use std::{fs, mem};
 use streaming_iterator::StreamingIterator;
 
 use rusqlite::params;
-use tree_sitter::{Parser, Query, QueryCursor};
+use tree_sitter::{Parser, Query, QueryCursor, QueryCapture};
 
 use super::parser::{par_file_iter, LibProcessor};
 use super::parser::{LangInclude, LibParser, SourceFinder, SystemProgram};
@@ -42,6 +42,7 @@ lazy_static::lazy_static! {
     ).expect("Error creating query");
 }
 
+// tree-sitter query for called functions and their arguments
 lazy_static::lazy_static! {
     static ref SYS_CALL_QUERY: Query = Query::new(
         &tree_sitter_cpp::LANGUAGE.into(),
@@ -53,6 +54,19 @@ lazy_static::lazy_static! {
         "#
     ).expect("Error creating query");
 }
+
+// tree-sitter-bash query for extracting commands
+lazy_static::lazy_static! {
+    static ref SYS_CALL_QUERY_BASH: Query = Query::new(
+        &tree_sitter_bash::LANGUAGE.into(),
+        r#"
+        (command
+            name: (command_name) @cmd_name
+        )
+        "#
+    ).expect("Error creating query");
+}
+
 
 //TODO: Maybe replace some of the calls to expect with better error handling?
 //Though I'm not sure if those conditions are actually recoverable
@@ -117,100 +131,129 @@ impl<'db> CPPParser<'db> {
         includes
     }
 
-    pub fn extract_sys_calls(file_path: &Path) -> HashSet<LangInclude> {
-        let mut calls = HashSet::new();
-
-        let source_code = match fs::read_to_string(file_path) {
+    pub fn extract_sys_calls(file_path: &Path) -> HashSet<LangInclude> 
+    {
+        let mut calls = HashSet::new(); // variable to hold the final grouping of calls
+        let source_code = match fs::read_to_string(file_path) // read the file into a string
+        {
             Ok(content) => content,
-            Err(e) => {
-                eprintln!("Error reading file {}: {}", file_path.display(), e);
+            Err(e) => 
+            {
+                eprintln!("Error reading {}: {}", file_path.to_str().unwrap(), e);
                 return calls;
             }
         };
 
-        let mut parser = Parser::new();
-        parser
-            .set_language(&tree_sitter_cpp::LANGUAGE.into())
-            .expect("Error loading C++ grammar");
-        let tree = parser.parse(&source_code, None).unwrap();
-        let root_node = tree.root_node();
+        // parse with tree-sitter
+        let mut parser = Parser::new(); // create a new parser
+        parser.set_language(&tree_sitter_cpp::LANGUAGE.into()) // set the parser language
+        .expect("Error loading C++ grammar");
+        let tree = parser.parse(&source_code, None).unwrap(); // create a tree
+        let root = tree.root_node(); // set the root node 
 
-        let mut query_cursor = QueryCursor::new();
-        let mut matches = query_cursor.matches(&SYS_CALL_QUERY, root_node, source_code.as_bytes());
+        let mut query_cursor = QueryCursor::new(); // object to query the tree
+        let mut matches = query_cursor.matches(&SYS_CALL_QUERY, root, source_code.as_bytes()); // look for matches in the src file as bytes
+        
+        while let Some(m) = matches.next() // loop to process each match that is found
+        {
+            // capture slots
+            let mut func_name: Option<String> = None; // variable to hold the function name
+            let mut args_node = None; // variable to hold the args
 
-        while let Some(m) = matches.next() {
-            let mut name = None;
-            let mut args = None;
-            for capture in m.captures {
-                let node = capture.node;
-                let capture_name = SYS_CALL_QUERY.capture_names()[capture.index as usize];
-                let capture_text = match node.utf8_text(source_code.as_bytes()) {
-                    Ok(text) => text.to_string(),
-                    Err(_) => continue,
-                };
-                match capture_name {
-                    "function_name" => name = Some(capture_text),
-                    "arg_list" => args = Some(capture_text),
+            for QueryCapture { node, index, .. } in m.captures // for loop to loop over the matches
+            {
+                let capture_name = &SYS_CALL_QUERY.capture_names()[*index as usize][..]; // represents the current capture
+                match capture_name // set the func_name and args_node variables to what was in the capture
+                {
+                    "function_name" => 
+                    {
+                        if let Ok(t) = node.utf8_text(source_code.as_bytes()) 
+                        {
+                            func_name = Some(t.to_string());
+                        }
+                    }
+                    "arg_list" => 
+                    {
+                        args_node = Some(node);
+                    }
                     _ => {}
                 }
             }
-            if let (Some(f), Some(a)) = (name, args) {
-                // filter only genuine syscalls
-                if Self::is_likely_syscall(&f) {
-                    calls.insert(LangInclude::OS(SystemProgram::Application(f.clone())));
-                    let libs: Vec<String> = Self::extract_string_literals(&a).into_iter().collect();
 
-                    for lib in libs {
-                        for token in lib.split_whitespace() {
-                            // make sure that the strings being parsed could be pkg names and are not flags or file paths
-                            if !token.starts_with('-')
-                                && !token.starts_with('/')
-                                && !token.ends_with('/')
-                            {
-                                calls.insert(LangInclude::OS(SystemProgram::Application(
-                                    token.to_string(),
-                                )));
-                            }
-                        }
+            if let (Some(f), Some(arg_list_node)) = (func_name, args_node) // check if both variables are not None
+            {
+                if !Self::is_likely_syscall(&f) // if not a syscall that spawns subprocesses, then continue
+                {
+                    continue;
+                }
+                // Prepare node for tree-sitter-bash parsing
+                let mut saw_one = false; // bool to track if string literal found
+                let mut stack = vec![*arg_list_node];
+                while let Some(node) = stack.pop() {
+                    if node.kind() == "string_literal" {
+                        let raw = node.utf8_text(source_code.as_bytes()).unwrap().trim_matches('"');
+                        // println!("DEBUG: Evaluating string literal: '{}'", raw);
+                        let parsed = Self::parse_bash_command(raw).unwrap_or_else(|| raw.to_string());
+                        let cmd = std::path::Path::new(&parsed)
+                                                        .file_name()
+                                                        .map(|os| os.to_string_lossy().into_owned())
+                                                        .unwrap_or_else(|| parsed.to_string());
+
+                        calls.insert(LangInclude::OS(SystemProgram::Application(cmd)));
+                        saw_one = true;
+                    }
+                    if saw_one {
+                        break; // stop after the first literal which should return the name of a program
+                    }
+                    let mut child_cursor = node.walk();
+                    for child in node.children(&mut child_cursor) {
+                        stack.push(child);
                     }
                 }
             }
         }
+
         calls
     }
 
-    fn is_likely_syscall(func: &str) -> bool {
+    fn is_likely_syscall(func: &str) -> bool 
+    {
         let lower = func.to_lowercase();
         matches!(
             lower.as_str(),
-            "open"
-                | "read"
-                | "write"
-                | "close"
                 | "system"
                 | "execlp"
-                | "perror"
                 | "execve"
-                | "fork"
         )
     }
 
-    fn extract_string_literals(s: &str) -> Vec<String> {
-        let mut out = Vec::new();
-        let mut chars = s.chars();
-        while let Some(c) = chars.next() {
-            if c == '"' {
-                let mut lit = String::new();
-                while let Some(n) = chars.next() {
-                    if n == '"' {
-                        break;
+    fn parse_bash_command(cmd: &str) -> Option<String> 
+    {
+        // set up tree-sitter-bash parser
+        let mut parser = Parser::new();
+        parser.set_language(&tree_sitter_bash::LANGUAGE.into())
+            .expect("Error loading Bash grammar");
+        let tree = parser.parse(cmd, None).unwrap();
+        let root = tree.root_node();
+        let src = cmd.as_bytes();
+
+        // run query to find command names
+        let mut query_cursor = QueryCursor::new();
+        let mut matches = query_cursor.matches(&*SYS_CALL_QUERY_BASH, root, src);
+        while let Some(m) = matches.next() {
+            for capture in m.captures {
+                if SYS_CALL_QUERY_BASH.capture_names()[capture.index as usize] == "cmd_name" {
+                    if let Ok(text) = capture.node.utf8_text(src) {
+                        return Some(text.to_string());
                     }
-                    lit.push(n);
                 }
-                out.push(lit);
             }
         }
-        out
+        // If no command found, return None
+        cmd
+            .split_whitespace()
+            .next()
+            .map(|s| s.to_string())
     }
 
     fn process_files<T>(&self, file_paths: T) -> HashMap<LangInclude, Vec<String>>
@@ -377,18 +420,15 @@ mod tests {
         }
 
         // Check that the expected system calls are found
+        // For system("ls -l /tmp"), should also find "ls"
         assert!(
-            found.contains("system"),
-            "Expected to find 'system' syscall"
-        );
-        assert!(
-            found.contains("execlp"),
-            "Expected to find 'execlp' syscall"
+            found.contains("ls"),
+            "Expected to find 'ls' command from system()"
         );
         // Should NOT contain unrelated functions
         assert!(
-            !found.contains("custom_func"),
-            "Should not find 'custom_func'"
+            !found.contains("rm"),
+            "Should not find 'rm'"
         );
     }
 }
