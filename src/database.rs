@@ -3,7 +3,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-use rusqlite;
+use rusqlite::{self, OpenFlags};
 use rusqlite::{CachedStatement, Connection, Statement};
 use std::path::Path;
 
@@ -14,7 +14,12 @@ pub struct Database {
 impl Database {
     ///Create database object from sqlite file at the provided path
     pub fn new(path: &Path) -> rusqlite::Result<Database> {
-        let connection = Connection::open(path)?;
+        let connection = Connection::open_with_flags(
+            path,
+            OpenFlags::SQLITE_OPEN_READ_ONLY
+                | OpenFlags::SQLITE_OPEN_URI
+                | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        )?;
         Ok(Database { connection })
     }
 
