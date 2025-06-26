@@ -16,6 +16,7 @@ use super::parser::{par_file_iter, LibProcessor};
 use super::parser::{LangInclude, LibParser, SourceFinder, SystemProgram};
 
 use crate::database::Database;
+use crate::parsing::bash_parser;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum CPPInclude {
@@ -50,18 +51,6 @@ lazy_static::lazy_static! {
         (call_expression
             function: (identifier) @function_name
             arguments: (argument_list) @arg_list
-        )
-        "#
-    ).expect("Error creating query");
-}
-
-// tree-sitter-bash query for extracting commands
-lazy_static::lazy_static! {
-    static ref SYS_CALL_QUERY_BASH: Query = Query::new(
-        &tree_sitter_bash::LANGUAGE.into(),
-        r#"
-        (command
-            name: (command_name) @cmd_name
         )
         "#
     ).expect("Error creating query");
@@ -198,9 +187,8 @@ impl<'db> CPPParser<'db> {
                             .utf8_text(source_code.as_bytes())
                             .unwrap()
                             .trim_matches('"');
-                        // println!("DEBUG: Evaluating string literal: '{}'", raw);
                         let parsed =
-                            Self::parse_bash_command(raw).unwrap_or_else(|| raw.to_string());
+                            bash_parser::parse_bash_command(raw).unwrap_or_else(|| raw.to_string());
                         let cmd = std::path::Path::new(&parsed)
                             .file_name()
                             .map(|os| os.to_string_lossy().into_owned())
@@ -226,32 +214,6 @@ impl<'db> CPPParser<'db> {
     fn is_likely_syscall(func: &str) -> bool {
         let lower = func.to_lowercase();
         matches!(lower.as_str(), |"system"| "execlp" | "execve")
-    }
-
-    fn parse_bash_command(cmd: &str) -> Option<String> {
-        // set up tree-sitter-bash parser
-        let mut parser = Parser::new();
-        parser
-            .set_language(&tree_sitter_bash::LANGUAGE.into())
-            .expect("Error loading Bash grammar");
-        let tree = parser.parse(cmd, None).unwrap();
-        let root = tree.root_node();
-        let src = cmd.as_bytes();
-
-        // run query to find command names
-        let mut query_cursor = QueryCursor::new();
-        let mut matches = query_cursor.matches(&SYS_CALL_QUERY_BASH, root, src);
-        while let Some(m) = matches.next() {
-            for capture in m.captures {
-                if SYS_CALL_QUERY_BASH.capture_names()[capture.index as usize] == "cmd_name" {
-                    if let Ok(text) = capture.node.utf8_text(src) {
-                        return Some(text.to_string());
-                    }
-                }
-            }
-        }
-        // If no command found, return None
-        cmd.split_whitespace().next().map(|s| s.to_string())
     }
 
     fn process_files<T>(&self, file_paths: T) -> HashMap<LangInclude, Vec<String>>
