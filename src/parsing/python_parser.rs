@@ -60,6 +60,7 @@ lazy_static::lazy_static! {
     ).expect("Error creating query");
 }
 
+<<<<<<< HEAD
 lazy_static::lazy_static! {
     static ref PYTHON_STD_LIBS: HashSet<&'static str> = [
         "__future__",
@@ -355,6 +356,8 @@ lazy_static::lazy_static! {
     ].into_iter().collect();
 }
 
+=======
+>>>>>>> 3ca7dda (refactor: parsing into traits for uniform interfaces across languages (#109))
 impl<'db> PythonParser<'db> {
     pub fn new(database: &'db Database) -> Self {
         PythonParser { database }
@@ -492,7 +495,10 @@ impl<'db> PythonParser<'db> {
                 //And we're already likely to be scanning them anyway
                 continue;
             }
+<<<<<<< HEAD
 
+=======
+>>>>>>> 3ca7dda (refactor: parsing into traits for uniform interfaces across languages (#109))
             //Split the module name since the first portion should be the actual package,
             //E.g. When importing matplotlib.pyplot, the actual module is matplotlib
             let module_import = module_import
@@ -500,10 +506,14 @@ impl<'db> PythonParser<'db> {
                 .map(|(first, _)| first.to_string())
                 .unwrap_or(module_import.clone());
 
+<<<<<<< HEAD
             if PYTHON_STD_LIBS.contains(module_import.as_str()) {
                 //Skip packages if they're part of the Python standard lib
                 continue;
             } else if let Ok(libs) = query_db(&module_import) {
+=======
+            if let Ok(libs) = query_db(&module_import) {
+>>>>>>> 3ca7dda (refactor: parsing into traits for uniform interfaces across languages (#109))
                 global_import_map.insert(import, libs);
             }
         }

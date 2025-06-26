@@ -36,3 +36,4 @@ impl Database {
         self.connection.prepare_cached(sql)
     }
 }
+
