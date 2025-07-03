@@ -75,7 +75,7 @@ pub trait SourceFinder {
     }
 }
 
-///Trait which allows for extracting the includes/imports from a given source file
+/// Trait which allows for extracting the includes/imports from a given source file
 pub trait LibParser {
     /// Extracts list of the includes/imports from a given source file for the specific language
     ///
@@ -102,7 +102,7 @@ pub trait LibParser {
 /// Intended to take/collect files and use the Dapper databases to map imports to their corresponding libraries/packages
 pub trait LibProcessor: SourceFinder + LibParser {
     /// Gets the includes/imports and maps to libraries for a single file
-    fn process_file(&self, file_path: &Path) -> HashMap<LangInclude, Vec<String>> {
+    fn process_file(&self, file_path: &Path) -> HashMap<LangInclude, Vec<Vec<String>>> {
         self.process_files(iter::once(file_path))
     }
 
@@ -110,7 +110,7 @@ pub trait LibProcessor: SourceFinder + LibParser {
     ///
     /// Mainly exists to allow both process_file and process_dir to both use the same code
     /// in the most efficient way possible
-    fn process_files<T>(&self, file_paths: T) -> HashMap<LangInclude, Vec<String>>
+    fn process_files<T>(&self, file_paths: T) -> HashMap<LangInclude, Vec<Vec<String>>>
     where
         T: IntoIterator,
         T::Item: AsRef<Path>;
@@ -121,7 +121,7 @@ pub trait LibProcessor: SourceFinder + LibParser {
     /// Or would we either rather have the user collect the walker to files and call process_files?
     /// I.e write these two lines themselves
     /// If we remove this, we can also delete the constraint requiring SourceFinder
-    fn process_dir(&self, walker: walkdir::IntoIter) -> HashMap<LangInclude, Vec<String>>
+    fn process_dir(&self, walker: walkdir::IntoIter) -> HashMap<LangInclude, Vec<Vec<String>>>
     where
         Self: Sized,
     {
