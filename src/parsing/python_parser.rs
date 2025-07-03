@@ -26,7 +26,10 @@ pub enum PythonImport {
 }
 
 pub struct PythonParser<'db> {
-    database: &'db Database,
+    package_database: &'db Database, //Used to look up python packages from PyPI
+    //TODO: Rename this to os_database once it's used
+    //Clippy counts unused-variables without underscore prefix as an error, breaking the CI pipeline
+    _os_database: &'db Database, //Used to look up subprocess commands from the OS
 }
 
 lazy_static::lazy_static! {
@@ -356,8 +359,12 @@ lazy_static::lazy_static! {
 }
 
 impl<'db> PythonParser<'db> {
-    pub fn new(database: &'db Database) -> Self {
-        PythonParser { database }
+    pub fn new(package_database: &'db Database, os_database: &'db Database) -> Self {
+        PythonParser {
+            package_database,
+            //TODO: Replace "_os_database: os_database" with just "os_database" once in use
+            _os_database: os_database,
+        }
     }
 
     pub fn extract_includes(file_path: &Path) -> HashSet<PythonImport> {
@@ -443,7 +450,7 @@ impl<'db> PythonParser<'db> {
         imports
     }
 
-    fn process_files<T>(&self, file_paths: T) -> HashMap<PythonImport, Vec<String>>
+    fn process_files<T>(&self, file_paths: T) -> HashMap<PythonImport, Vec<Vec<String>>>
     where
         T: IntoIterator,
         T::Item: AsRef<Path>,
@@ -462,7 +469,7 @@ impl<'db> PythonParser<'db> {
         //Prepare SQL for database query
         //TODO: Double check this, might want to normalize and change query to normalized_name
         let mut sql_statement = self
-            .database
+            .package_database
             .prepare_cached_statement(
                 "SELECT package_name FROM v_package_imports WHERE import_as = ?1",
             )
@@ -477,7 +484,7 @@ impl<'db> PythonParser<'db> {
         //Take ownership of the global_includes HashSet back from the Mutex
         //As we are done with parallel processing and so that we can move the underlying data
         let global_imports = mem::take(&mut *global_imports.lock().unwrap());
-        let mut global_import_map: HashMap<PythonImport, Vec<String>> = HashMap::new();
+        let mut global_import_map: HashMap<PythonImport, Vec<Vec<String>>> = HashMap::new();
 
         for import in global_imports.into_iter() {
             let module_import = match &import {
@@ -504,7 +511,9 @@ impl<'db> PythonParser<'db> {
                 //Skip packages if they're part of the Python standard lib
                 continue;
             } else if let Ok(libs) = query_db(&module_import) {
-                global_import_map.insert(import, libs);
+                //TODO: Implement heuristic to rank matches
+                //For now all results are treated as equally "good"
+                global_import_map.insert(import, vec![libs]);
             }
         }
 
@@ -535,7 +544,7 @@ impl LibParser for PythonParser<'_> {
 }
 
 impl LibProcessor for PythonParser<'_> {
-    fn process_files<T>(&self, file_paths: T) -> HashMap<LangInclude, Vec<String>>
+    fn process_files<T>(&self, file_paths: T) -> HashMap<LangInclude, Vec<Vec<String>>>
     where
         T: IntoIterator,
         T::Item: AsRef<Path>,

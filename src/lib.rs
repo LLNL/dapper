@@ -26,14 +26,14 @@ pub fn run(arg_path: &str) {
     //C++ database/parser
     let db_dir = get_base_directory().expect("Unable to get the user's local data directory");
     let db_path = db_dir.join("LinuxPackageDB.db");
-    let cpp_database = Database::new(&db_path).expect("Unable to connect to C++ database");
-    let cpp_parser = CPPParser::new(&cpp_database);
+    let os_database = Database::new(&db_path).expect("Unable to connect to C++ database");
+    let cpp_parser = CPPParser::new(&os_database);
 
     //Python database/parser
     let db_dir = get_base_directory().expect("Unable to get the user's local data directory");
     let db_path = db_dir.join("PyPIPackageDB.db");
     let python_database = Database::new(&db_path).expect("Unable to connect to Python database");
-    let python_parser = PythonParser::new(&python_database);
+    let python_parser = PythonParser::new(&python_database, &os_database);
 
     //Process includes for all known/supported languages
     let md = metadata(arg_path).unwrap();
@@ -61,7 +61,10 @@ pub fn run(arg_path: &str) {
 
     //Do something more useful with the includes later
     for (include, libs) in libraries.iter() {
-        println!("{:?}: {:?}", include, libs);
+        println!("{:?}:", include);
+        for rank in libs.iter() {
+            println!("\t{:?}", rank);
+        }
         println!();
     }
 }

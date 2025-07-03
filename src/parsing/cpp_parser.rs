@@ -16,6 +16,7 @@ use super::parser::{par_file_iter, LibProcessor};
 use super::parser::{LangInclude, LibParser, SourceFinder, SystemProgram};
 
 use crate::database::Database;
+use crate::file_path_utils::normalize_multiarch;
 use crate::parsing::bash_parser;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -26,6 +27,11 @@ pub enum CPPInclude {
 
 pub struct CPPParser<'db> {
     database: &'db Database,
+}
+
+struct LibEntry {
+    package_name: String,
+    file_path: String,
 }
 
 //TODO: Is there a better way to organize/encapsulate this?
@@ -42,6 +48,164 @@ lazy_static::lazy_static! {
         "#
     ).expect("Error creating query");
 }
+
+lazy_static::lazy_static! {
+    static ref CPP_STD_LIBS: HashSet<&'static str> = [
+    "algorithm",
+    "any",
+    "array",
+    "assert.h",
+    "atomic",
+    "barrier",
+    "bit",
+    "bitset",
+    "cassert",
+    "ccomplex",
+    "cctype",
+    "cerrno",
+    "cfenv",
+    "cfloat",
+    "charconv",
+    "chrono",
+    "cinttypes",
+    "ciso646",
+    "climits",
+    "clocale",
+    "cmath",
+    "codecvt",
+    "codecvt",
+    "compare",
+    "complex",
+    "complex.h",
+    "concepts",
+    "condition_variable",
+    "contracts",
+    "coroutine",
+    "csetjmp",
+    "csignal",
+    "cstdalign",
+    "cstdarg",
+    "cstdbool",
+    "cstddef",
+    "cstdint",
+    "cstdio",
+    "cstdlib",
+    "cstring",
+    "ctgmath",
+    "ctime",
+    "ctype.h",
+    "cuchar",
+    "cwchar",
+    "cwctype",
+    "debugging",
+    "deque",
+    "errno.h",
+    "exception",
+    "execution",
+    "expected",
+    "fenv.h",
+    "filesystem",
+    "flat_map",
+    "flat_set",
+    "float.h",
+    "format",
+    "forward_list",
+    "fstream",
+    "functional",
+    "future",
+    "generator",
+    "hazard_pointer",
+    "hive",
+    "initializer_list",
+    "inplace_vector",
+    "inttypes.h",
+    "iomanip",
+    "ios",
+    "iosfwd",
+    "iostream",
+    "iso646.h",
+    "istream",
+    "iterator",
+    "latch",
+    "limits",
+    "limits.h",
+    "linalg",
+    "list",
+    "locale",
+    "locale.h",
+    "map",
+    "math.h",
+    "mdspan",
+    "memory",
+    "memory_resource",
+    "mutex",
+    "new",
+    "numbers",
+    "numeric",
+    "optional",
+    "ostream",
+    "print",
+    "queue",
+    "random",
+    "ranges",
+    "ratio",
+    "rcu",
+    "regex",
+    "scoped_allocator",
+    "semaphore",
+    "set",
+    "setjmp.h",
+    "shared_mutex",
+    "signal.h",
+    "simd",
+    "source_location",
+    "span",
+    "spanstream",
+    "sstream",
+    "stack",
+    "stacktrace",
+    "stdalign.h",
+    "stdarg.h",
+    "stdatomic.h",
+    "stdbit.h",
+    "stdbool.h",
+    "stdchkint.h",
+    "stddef.h",
+    "stdexcept",
+    "stdfloat",
+    "stdint.h",
+    "stdio.h",
+    "stdlib.h",
+    "stop_token",
+    "streambuf",
+    "string",
+    "string.h",
+    "string_view",
+    "strstream",
+    "syncstream",
+    "system_error",
+    "text_encoding",
+    "tgmath.h",
+    "thread",
+    "time.h",
+    "tuple",
+    "type_traits",
+    "typeindex",
+    "typeinfo",
+    "uchar.h",
+    "unordered_map",
+    "unordered_set",
+    "utility",
+    "valarray",
+    "variant",
+    "vector",
+    "version",
+    "wchar.h",
+    "wctype.h",
+    ].into_iter().collect();
+}
+
+static BASE_DIRS: [&str; 3] = ["/bin", "/usr/bin", "/usr/include"];
 
 // tree-sitter query for called functions and their arguments
 lazy_static::lazy_static! {
@@ -216,7 +380,49 @@ impl<'db> CPPParser<'db> {
         matches!(lower.as_str(), |"system"| "execlp" | "execve")
     }
 
-    fn process_files<T>(&self, file_paths: T) -> HashMap<LangInclude, Vec<String>>
+    /// Ranks the collected libraries/executables in groups of best matches to worst
+    /// Based on filesystem location
+    /// E.g. matches found in /usr/bin are likely better than /usr/lib/a/b/c/d
+    ///
+    /// For internal use
+    /// TODO: Potentially move this to a more "sharable" spot
+    /// Was originally intended just for ranking C++ libraries, but would likely also apply to subprocess/sys calls
+    /// For other languages
+    fn rank_libs(libs: Vec<LibEntry>) -> Vec<Vec<String>> {
+        //Current ranking is based on [in_base dirs (/bin, ...), starts with the same, everything else]
+        let mut ranked_libs: Vec<Vec<String>> = vec![Vec::new(), Vec::new(), Vec::new()];
+
+        for lib in libs.into_iter() {
+            let file_path = Path::new(lib.file_path.as_str());
+
+            if let Some(parent) = file_path.parent() {
+                //Remove any multiarch elements
+                let (parent, _, _) = normalize_multiarch(parent.to_str().unwrap());
+
+                //If the lib is directly in one of the base dirs, it's the best match
+                if BASE_DIRS.iter().any(|&s| parent == s) {
+                    ranked_libs[0].push(lib.package_name);
+                }
+                //Anything under the base directories with further subdirectories is next-best
+                else if BASE_DIRS.iter().any(|&s| parent.starts_with(s)) {
+                    ranked_libs[1].push(lib.package_name);
+                }
+                //Anything else gets put in the lowest priority bucket
+                else if let Some(bucket) = ranked_libs.last_mut() {
+                    bucket.push(lib.package_name);
+                }
+
+            //Catchall
+            } else if let Some(bucket) = ranked_libs.last_mut() {
+                bucket.push(lib.package_name);
+            }
+        }
+
+        ranked_libs.retain(|sub| !sub.is_empty());
+        ranked_libs
+    }
+
+    fn process_files<T>(&self, file_paths: T) -> HashMap<LangInclude, Vec<Vec<String>>>
     where
         T: IntoIterator,
         T::Item: AsRef<Path>,
@@ -243,19 +449,26 @@ impl<'db> CPPParser<'db> {
         //TODO: Double check this, might want to normalize and change query to normalized_name
         let mut sql_statement = self
             .database
-            .prepare_cached_statement("SELECT package_name FROM package_files WHERE file_name = ?1")
+            .prepare_cached_statement(
+                "SELECT package_name, file_path FROM package_files WHERE file_name = ?1",
+            )
             .expect("Error loading SQL statement");
 
-        let mut query_db = |file_name: &str| -> Result<Vec<String>, _> {
+        let mut query_db = |file_name: &str| -> Result<Vec<LibEntry>, _> {
             sql_statement
-                .query_map(params![file_name], |row| row.get(0))?
+                .query_map(params![file_name], |row| {
+                    Ok(LibEntry {
+                        package_name: row.get(0)?,
+                        file_path: row.get(1)?,
+                    })
+                })?
                 .collect()
         };
 
         //Take ownership of the global_includes HashSet back from the Mutex
         //As we are done with parallel processing and so that we can move the underlying data
         let global_includes = mem::take(&mut *global_includes.lock().unwrap());
-        let mut global_include_map: HashMap<CPPInclude, Vec<String>> = HashMap::new();
+        let mut global_include_map: HashMap<CPPInclude, Vec<Vec<String>>> = HashMap::new();
 
         for include in global_includes.into_iter() {
             let raw_include = match &include {
@@ -264,13 +477,16 @@ impl<'db> CPPParser<'db> {
             };
             let include_lower = raw_include.rsplit('/').next().unwrap().to_lowercase();
 
-            if let Ok(libs) = query_db(&include_lower) {
-                global_include_map.insert(include, libs);
+            if CPP_STD_LIBS.contains(include_lower.as_str()) {
+                //Skip packages if they're part of the C/C++ standard lib
+                continue;
+            } else if let Ok(libs) = query_db(&include_lower) {
+                global_include_map.insert(include, CPPParser::rank_libs(libs));
             }
         }
 
         let global_sys_calls = mem::take(&mut *global_sys_calls.lock().unwrap());
-        let mut global_sys_call_map: HashMap<LangInclude, Vec<String>> = HashMap::new();
+        let mut global_sys_call_map: HashMap<LangInclude, Vec<Vec<String>>> = HashMap::new();
 
         for sys_call in global_sys_calls.into_iter() {
             let func_name = match &sys_call {
@@ -281,11 +497,11 @@ impl<'db> CPPParser<'db> {
             };
 
             if let Ok(libs) = query_db(&func_name) {
-                global_sys_call_map.insert(sys_call, libs);
+                global_sys_call_map.insert(sys_call, CPPParser::rank_libs(libs));
             }
         }
         // Merge both maps into a HashMap<LangInclude, Vec<String>>
-        let mut result: HashMap<LangInclude, Vec<String>> = HashMap::new();
+        let mut result: HashMap<LangInclude, Vec<Vec<String>>> = HashMap::new();
         for (inc, pkgs) in global_include_map {
             result.insert(LangInclude::CPP(inc), pkgs);
         }
@@ -323,7 +539,7 @@ impl LibParser for CPPParser<'_> {
 }
 
 impl LibProcessor for CPPParser<'_> {
-    fn process_files<T>(&self, file_paths: T) -> HashMap<LangInclude, Vec<String>>
+    fn process_files<T>(&self, file_paths: T) -> HashMap<LangInclude, Vec<Vec<String>>>
     where
         T: IntoIterator,
         T::Item: AsRef<Path>,
