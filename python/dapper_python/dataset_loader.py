@@ -1,4 +1,5 @@
 import platform
+import os
 from pathlib import Path
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -96,11 +97,11 @@ class DatasetCatalog:
             return os.path.join(os.path.expanduser("~"), "Library", "Application Support", app_name)
 
         elif system == "Windows":
-            appdata = os.environ.get("APPDATA")
+            appdata = os.environ.get("LOCALAPPDATA")
             if appdata:
-                return os.path.join(appdata, app_name)
+                return os.path.join(appdata, app_name, "data")
             else:
-                return os.path.join(os.path.expanduser("~"), "AppData", "Roaming", app_name)
+                return os.path.join(os.path.expanduser("~"), "AppData", "Local", app_name, "data")
 
         else:
             return os.path.join(os.path.expanduser("~"), f".{app_name}")
