@@ -157,8 +157,8 @@ fn normalize_haskell(soname: &str) -> (String, Option<String>, bool) {
                 // Pull out the version number portion of the name if it is present
                 // some version numbers may have suffixes such as _thr and _debug
                 name.rsplit_once('-').map_or_else(
-                    || (format!("{}.so", name), None),
-                    |(name, version)| (format!("{}.so", name), Some(version.to_string())),
+                    || (format!("{name}.so"), None),
+                    |(name, version)| (format!("{name}.so"), Some(version.to_string())),
                 )
             }) {
             Some((base_soname, version)) => (base_soname, version, true),
@@ -166,7 +166,7 @@ fn normalize_haskell(soname: &str) -> (String, Option<String>, bool) {
         }
     } else {
         // No ghc version number found -- maybe not a valid haskell library?
-        eprintln!("No GHC Version Number Found: {}", soname);
+        eprintln!("No GHC Version Number Found: {soname}");
         (soname.to_string(), None, false)
     }
 }
@@ -227,7 +227,7 @@ static MULTIARCH_PATTERN: Lazy<Regex> = Lazy::new(|| {
         "x86",
         "x86_64",
     ];
-    let architectures_pattern = architectures.map(|s| format!(r"(?:{})", s)).join("|");
+    let architectures_pattern = architectures.map(|s| format!(r"(?:{s})")).join("|");
 
     let vendors = [
         "apple",
@@ -242,27 +242,23 @@ static MULTIARCH_PATTERN: Lazy<Regex> = Lazy::new(|| {
         "ubuntu",
         "unknown",
     ];
-    let vendors_pattern = vendors.map(|s| format!(r"(?:{})", s)).join("|");
+    let vendors_pattern = vendors.map(|s| format!(r"(?:{s})")).join("|");
 
     let os = [
         "aix", "android", "darwin", "freebsd", "linux", "netbsd", "openbsd", "solaris", "windows",
     ];
-    let os_pattern = os.map(|s| format!(r"(?:{})", s)).join("|");
+    let os_pattern = os.map(|s| format!(r"(?:{s})")).join("|");
 
     let libs = ["eabi", "eabihf", "gnu", "musl", "uclibc"];
-    let libs_pattern = libs.map(|s| format!(r"(?:{})", s)).join("|");
+    let libs_pattern = libs.map(|s| format!(r"(?:{s})")).join("|");
 
     let regex_pattern = format!(
         r"(?x)
-        (?<arch>{arch})
-        (?:-(?<vendor>{vendor}))?   #Vendor is optional
-        -(?<os>{os})
-        (?:-(?<lib>{lib}))?     #Lib is optional (ex: linux vs linux-gnu)
+        (?<arch>{architectures_pattern})
+        (?:-(?<vendor>{vendors_pattern}))?   #Vendor is optional
+        -(?<os>{os_pattern})
+        (?:-(?<lib>{libs_pattern}))?     #Lib is optional (ex: linux vs linux-gnu)
         ",
-        arch = architectures_pattern,
-        vendor = vendors_pattern,
-        os = os_pattern,
-        lib = libs_pattern,
     );
     Regex::new(&regex_pattern).expect("Failed to compile regex")
 });

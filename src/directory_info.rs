@@ -12,7 +12,7 @@ pub fn get_base_directory() -> Option<PathBuf> {
         let path = base_dirs.data_local_dir().to_path_buf();
         // make sure the directory exists, if it doesn't then create it.
         if let Err(e) = fs::create_dir_all(&path) {
-            eprintln!("Failed to create the dapper directory: {} ", e);
+            eprintln!("Failed to create the dapper directory: {e} ");
             return None;
         }
         Some(path)

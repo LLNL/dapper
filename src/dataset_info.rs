@@ -98,10 +98,7 @@ pub fn update_dataset_info(
             .insert(dataset_name.to_string(), new_dataset);
     } else {
         // If the dataset does not exist and the user does not want to add a new one
-        eprintln!(
-            "Dataset '{}' does not exist and 'add_new_dataset' is false.",
-            dataset_name
-        );
+        eprintln!("Dataset '{dataset_name}' does not exist and 'add_new_dataset' is false.");
         return Err(io::Error::new(io::ErrorKind::NotFound, "Dataset not found"));
     }
 

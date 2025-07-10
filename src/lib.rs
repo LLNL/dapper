@@ -61,9 +61,9 @@ pub fn run(arg_path: &str) {
 
     //Do something more useful with the includes later
     for (include, libs) in libraries.iter() {
-        println!("{:?}:", include);
+        println!("{include:?}:");
         for rank in libs.iter() {
-            println!("\t{:?}", rank);
+            println!("\t{rank:?}");
         }
         println!();
     }
