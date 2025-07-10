@@ -72,3 +72,42 @@ jobs:
     - name: Run pytest
       run: python -m pytest
       working-directory: python
+  
+  fetching-dataset-test:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Download dapper dataset
+      uses: actions/download-artifact@v4
+      with:
+        name: dapper-binary-${{ runner.os }}
+        path: target/debug/
+
+    - name: Make binary executable
+      run: chmod +x target/debug/dapper
+
+    - name: Download and Extract dataset
+      run: |
+        # Initilating XDG directory
+        mkdir -p $HOME/.local/share/dapper
+
+        # Download Linux package database
+        curl -L -o /tmp/debian-buster-v1.db.zip "https://huggingface.co/datasets/dapper-datasets/debian-buster/resolve/v1/debian-buster-v1.db.zip"
+        unzip /tmp/debian-buster-v1.db.zip -d /tmp/ 
+        mv /tmp/debian-buster-v1.db $HOME/.local/share/dapper/LinuxPackageDB.db
+        rm /tmp/debian-buster-v1.db.zip
+
+        # Download PyPI package database
+        curl -L -o /tmp/pypi-v1.db.zip "https://huggingface.co/datasets/dapper-datasets/pypi/resolve/v1/pypi-v1.db.zip"
+        unzip /tmp/pypi-v1.db.zip -d /tmp/
+        mv /tmp/PyPIPackageDB.db $HOME/.local/share/dapper/PyPIPackageDB.db
+        rm /tmp/pypi-v1.db.zip
+
+    - name: Test Dapper with downloaded artifact
+      run: |
+        mkdir -p /tmp/test-files
+        echo '#include <iostream>' > /tmp/test-files/test.cpp
+
+        ./target/debug/dapper /tmp/test-files
