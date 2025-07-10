@@ -32,7 +32,6 @@ Discussions = "https://github.com/LLNL/dapper/discussions"
 "Issue Tracker" = "https://github.com/LLNL/dapper/issues"
 "Source Code" = "https://github.com/LLNL/dapper"
 
-
 [project.optional-dependencies]
 test = ["pytest"]
 dev = ["build", "pre-commit"]
