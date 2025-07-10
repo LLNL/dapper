@@ -16,6 +16,7 @@ class NormalizedFileName:
         soabi (Optional[str]): The SOABI version, if available.
         normalized (bool): Indicates if the file name was normalized.
     """
+
     name: str
     version: Optional[str] = None
     soabi: Optional[str] = None
@@ -23,6 +24,7 @@ class NormalizedFileName:
 
     def __str__(self) -> str:
         return self.name
+
 
 def normalize_file_name(name: str) -> Union[NormalizedFileName, str]:
     """
@@ -35,9 +37,13 @@ def normalize_file_name(name: str) -> Union[NormalizedFileName, str]:
         Union[NormalizedFileName, str]: A NormalizedFileName object if the file name is a shared library,
         otherwise the original file name.
     """
-    if name.endswith(".so") or (".so." in name and not any(name.endswith(suffix) for suffix in [".gz", ".patch", ".diff", ".hmac", ".qm"])):
+    if name.endswith(".so") or (
+        ".so." in name
+        and not any(name.endswith(suffix) for suffix in [".gz", ".patch", ".diff", ".hmac", ".qm"])
+    ):
         return normalize_soname(name)
     return name
+
 
 def normalize_soname(soname: str) -> NormalizedFileName:
     """
@@ -54,7 +60,9 @@ def normalize_soname(soname: str) -> NormalizedFileName:
 
     if ".cpython-" in soname:
         pos = soname.find(".cpython-")
-        return NormalizedFileName(normalize_cpython(soname, pos), soabi=soabi_version, normalized=True)
+        return NormalizedFileName(
+            normalize_cpython(soname, pos), soabi=soabi_version, normalized=True
+        )
     elif ".pypy" in soname:
         pos = soname.find(".pypy")
         return NormalizedFileName(normalize_pypy(soname, pos), soabi=soabi_version, normalized=True)
@@ -66,6 +74,7 @@ def normalize_soname(soname: str) -> NormalizedFileName:
         if version:
             return NormalizedFileName(normalized_name, version, soabi_version, True)
         return NormalizedFileName(soname, soabi=soabi_version, normalized=False)
+
 
 def extract_soabi_version(soname: str) -> (str, str):
     """
@@ -79,8 +88,9 @@ def extract_soabi_version(soname: str) -> (str, str):
     """
     if ".so." in soname:
         pos = soname.find(".so.")
-        return soname[:pos + 3], soname[pos + 4:]
+        return soname[: pos + 3], soname[pos + 4 :]
     return soname, ""
+
 
 def extract_version_suffix(soname: str) -> (str, Optional[str]):
     """
@@ -96,9 +106,10 @@ def extract_version_suffix(soname: str) -> (str, Optional[str]):
     match = version_pattern.search(soname)
     if match:
         version = match.group(1)
-        base_soname = soname.rsplit('-', 1)[0]
+        base_soname = soname.rsplit("-", 1)[0]
         return f"{base_soname}.so", version
     return soname, None
+
 
 def normalize_cpython(soname: str, pos: int) -> str:
     """
@@ -113,6 +124,7 @@ def normalize_cpython(soname: str, pos: int) -> str:
     """
     return f"{soname[:pos]}.cpython.so"
 
+
 def normalize_pypy(soname: str, pos: int) -> str:
     """
     Normalize a PyPy shared object file name.
@@ -125,6 +137,7 @@ def normalize_pypy(soname: str, pos: int) -> str:
         str: The normalized file name.
     """
     return f"{soname[:pos]}.pypy.so"
+
 
 def normalize_haskell(soname: str) -> (str, Optional[str], bool):
     """
@@ -140,11 +153,11 @@ def normalize_haskell(soname: str) -> (str, Optional[str], bool):
     if "-ghc" in soname:
         pos = soname.rfind("-ghc")
         name = soname[:pos]
-        api_hash = name.rsplit('-', 1)[-1]
+        api_hash = name.rsplit("-", 1)[-1]
         if len(api_hash) in [20, 21, 22] and api_hash.isalnum():
-            name = name[:-(len(api_hash) + 1)]
-        if '-' in name:
-            name, version = name.rsplit('-', 1)
+            name = name[: -(len(api_hash) + 1)]
+        if "-" in name:
+            name, version = name.rsplit("-", 1)
             return f"{name}.so", version, True
         else:
             return f"{name}.so", None, True

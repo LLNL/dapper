@@ -1,8 +1,15 @@
 import pytest
 from dapper_python.normalize import normalize_file_name, NormalizedFileName
 
+
 def do_soname_normalization_tests(test_cases):
-    for input_name, expected_name, expected_version, expected_soabi, expected_normalized in test_cases:
+    for (
+        input_name,
+        expected_name,
+        expected_version,
+        expected_soabi,
+        expected_normalized,
+    ) in test_cases:
         result = normalize_file_name(input_name)
         if isinstance(result, NormalizedFileName):
             assert result.name == expected_name
@@ -12,6 +19,7 @@ def do_soname_normalization_tests(test_cases):
         else:
             assert result == expected_name
 
+
 def test_basic_normalization():
     test_cases = [
         ("libexample.so", "libexample.so", None, None, False),
@@ -19,6 +27,7 @@ def test_basic_normalization():
         ("libexample-1.2.3.so", "libexample.so", "1.2.3", None, True),
     ]
     do_soname_normalization_tests(test_cases)
+
 
 def test_edge_cases():
     test_cases = [
@@ -30,6 +39,7 @@ def test_edge_cases():
     ]
     do_soname_normalization_tests(test_cases)
 
+
 def test_version_extraction():
     test_cases = [
         ("libexample-1.2.3.so", "libexample.so", "1.2.3", None, True),
@@ -37,6 +47,7 @@ def test_version_extraction():
         ("libexample-1.2.3-beta.so", "libexample-1.2.3-beta.so", None, None, False),
     ]
     do_soname_normalization_tests(test_cases)
+
 
 def test_soabi_handling():
     test_cases = [
@@ -47,15 +58,29 @@ def test_soabi_handling():
     ]
     do_soname_normalization_tests(test_cases)
 
+
 def test_cpython_normalization():
     test_cases = [
         ("stringprep.cpython-312-x86_64-linux-gnu.so", "stringprep.cpython.so", None, None, True),
         # This one is strange -- has x86-64 instead of x86_64
-        ("libpytalloc-util.cpython-312-x86-64-linux-gnu.so", "libpytalloc-util.cpython.so", None, None, True),
-        #This one is also a bit odd, has samba4 in the platform tag
-        ("libsamba-net.cpython-312-x86-64-linux-gnu-samba4.so.0", "libsamba-net.cpython.so", None, "0", True),
+        (
+            "libpytalloc-util.cpython-312-x86-64-linux-gnu.so",
+            "libpytalloc-util.cpython.so",
+            None,
+            None,
+            True,
+        ),
+        # This one is also a bit odd, has samba4 in the platform tag
+        (
+            "libsamba-net.cpython-312-x86-64-linux-gnu-samba4.so.0",
+            "libsamba-net.cpython.so",
+            None,
+            "0",
+            True,
+        ),
     ]
     do_soname_normalization_tests(test_cases)
+
 
 def test_pypy_normalization():
     test_cases = [
@@ -63,14 +88,22 @@ def test_pypy_normalization():
     ]
     do_soname_normalization_tests(test_cases)
 
+
 def test_haskell_normalization():
     test_cases = [
         ("libHSAgda-2.6.3-F91ij4KwIR0JAPMMfugHqV-ghc9.4.7.so", "libHSAgda.so", "2.6.3", None, True),
-        ("libHScpphs-1.20.9.1-1LyMg8r2jodFb2rhIiKke-ghc9.4.7.so", "libHScpphs.so", "1.20.9.1", None, True),
+        (
+            "libHScpphs-1.20.9.1-1LyMg8r2jodFb2rhIiKke-ghc9.4.7.so",
+            "libHScpphs.so",
+            "1.20.9.1",
+            None,
+            True,
+        ),
         ("libHSrts-1.0.2_thr_debug-ghc9.4.7.so", "libHSrts.so", "1.0.2_thr_debug", None, True),
-        ("libHSrts-ghc8.6.5.so", "libHSrts.so", None, None, True)
+        ("libHSrts-ghc8.6.5.so", "libHSrts.so", None, None, True),
     ]
     do_soname_normalization_tests(test_cases)
+
 
 def test_dash_version_suffix_normalization():
     test_cases = [
@@ -88,9 +121,16 @@ def test_dash_version_suffix_normalization():
         ("libdsdp-5.8gf.so", "libdsdp-5.8gf.so", None, None, False),
         # Potential + in the middle of a version number also makes so it won't be normalized
         ("libgupnp-dlna-0.10.5+0.10.5.so", "libgupnp-dlna-0.10.5+0.10.5.so", None, None, False),
-        ("libsingular-omalloc-4.3.2+0.9.6.so", "libsingular-omalloc-4.3.2+0.9.6.so", None, None, False),
+        (
+            "libsingular-omalloc-4.3.2+0.9.6.so",
+            "libsingular-omalloc-4.3.2+0.9.6.so",
+            None,
+            None,
+            False,
+        ),
     ]
     do_soname_normalization_tests(test_cases)
+
 
 def test_weird_soabi_normalization():
     test_cases = [
