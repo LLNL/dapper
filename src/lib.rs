@@ -14,7 +14,6 @@ use std::collections::HashMap;
 use std::fs::metadata;
 use std::path::Path;
 use walkdir::WalkDir;
-
 use crate::directory_info::get_base_directory;
 
 pub fn run(arg_path: &str) {
@@ -22,6 +21,17 @@ pub fn run(arg_path: &str) {
     use crate::parsing::cpp_parser::CPPParser;
     use crate::parsing::parser::LibProcessor;
     use crate::parsing::python_parser::PythonParser;
+    use crate::dataset_info::create_dataset_info;
+
+    // Initialize dataset_info.toml if it doesn't exist
+    let db_dir = get_base_directory().expect("Unable to get the user's local data directory");
+    match create_dataset_info(Some(db_dir.clone())) {
+        Ok(true) => println!("Created dataset_info.toml in {}", db_dir.display()),
+        Ok(false) => {},
+        Err(e) => {
+            eprintln!("Warning: Could not create dataset_info.toml: {}", e);
+        }
+    }
 
     //C++ database/parser
     let db_dir = get_base_directory().expect("Unable to get the user's local data directory");
