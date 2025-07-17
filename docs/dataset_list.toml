@@ -1,3 +1,63 @@
 [metadata]
 version = "1.0"
 last_updated = "2025-05-17"
+base_url = "https://huggingface.co/datasets/dapper-datasets/"
+
+[dapper-datasets.debian-bookworm]
+version = "v1"
+filename ="debian-bookworm"
+format ="sqlite"
+timestamp = ""
+categories = ["os", "linux", "debian"]
+
+
+[dapper-datasets.pypi]
+version = "v1"
+filename ="pypi"
+format ="sqlite"
+timestamp = "2025-06-20"
+categories = ["language", "python", "pypi"]
+
+
+[dapper-datasets.debian-buster]
+version = "v1"
+filename ="debian-buster"
+format ="sqlite"
+timestamp = "2025-04-09"
+categories = ["os", "linux", "debian"]
+
+
+[dapper-datasets.ubuntu-jammy]
+version = "v1"
+filename ="ubuntu-jammy"
+format ="sqlite"
+timestamp = "2025-04-09"
+categories = ["os", "linux", "debian"]
+
+
+[dapper-datasets.debian-bullseye]
+version = "v1"
+filename ="debian-bullseye"
+format ="sqlite"
+timestamp = "2025-04-09"
+categories = ["os", "linux", "debian"]
+
+
+[dapper-datasets.ubuntu-noble]
+version = "v1"
+filename ="ubuntu-noble"
+format ="sqlite"
+timestamp = "2025-04-09"
+categories = ["os", "linux", "debian"]
+size_bytes
+
+[dapper-datasets.ubuntu-focal]
+version = "v1"
+filename ="ubuntu-focal"
+format ="sqlite"
+timestamp = "2025-04-09"
+categories = ["os", "linux", "debian"]
+size_bytes
+
+
+
