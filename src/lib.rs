@@ -29,7 +29,7 @@ pub fn run(arg_path: &str) {
         Ok(true) => println!("Created dataset_info.toml in {}", db_dir.display()),
         Ok(false) => {},
         Err(e) => {
-            eprintln!("Warning: Could not create dataset_info.toml: {}", e);
+            eprintln!("Warning: Could not create dataset_info.toml: {e}");
         }
     }
 
