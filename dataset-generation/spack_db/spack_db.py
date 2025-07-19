@@ -19,6 +19,21 @@ import tarfile
 import warnings
 warnings.filterwarnings("ignore")
 
+# os to create a cache folder - disk-based caching
+import os
+
+# Configuration
+SPEC_CACHE_DIR = "cache/spec_manifests"
+BINARY_CACHE_DIR = "cache/binary_packages"
+
+# checkpoint to safely stop the script at any time
+CHECKPOINT_FILE = "progress.txt"
+
+# create cache directories for faster download
+os.makedirs(SPEC_CACHE_DIR, exist_ok = True)
+os.makedirs(BINARY_CACHE_DIR, exist_ok = True)
+
+
 # reading file
 def readmyfile(myfile):
     try: 
@@ -34,28 +49,28 @@ def readmyfile(myfile):
     except Exception as e:
         print(f"Error occured in readmyfile: {e}")
 
-# getting package hash which is the key for the package info
-# first argument is the index of the package by number
-# second argument is the database that was loaded in the readmyfile function
-def get_package(num, db):
+# load that last saved package hash
+def load_checkpoint():
+    # checks if progress.txt exists
+    if os.path.exists(CHECKPOINT_FILE):
+        with open(CHECKPOINT_FILE, "r") as f:
 
-    # db and temp variables are type dict
-    temp = db['database']['installs']
+            # read and return last processed package_hash
+            # strip removes trailing newline or spaces
+            return f.read().strip()
+    
+    # if the file does not exist, return None
+    # if None, start from the beginning
+    return None
 
-    #this accesses the install package of choice by index
-    package_hash = list(temp)[num] 
-    #NOTE TO SELF: turning it into a list may be slower
 
-    return temp, package_hash
+# saves the last processed package_hash to progress.txt
+# if the program is interrupted, the saved package_hash will be 
+    # the starting point when rerun
+def save_checkpoint(package_hash):
+    with open(CHECKPOINT_FILE, "w") as f:
+        f.write(package_hash)
 
-# get the package info from the package hash key
-def get_package_value(temp, package_hash):
-
-    # for each key in the database, return the value if the key matches the package hash of interest
-    for k in temp:
-        if k == package_hash:
-            #this will return the values of the package package_hash 
-            return temp[k]
 
 # make the spec manifest downloadable URL
 def make_spec_manifest_URL(package_hash, package_hash_value):
@@ -83,10 +98,31 @@ def make_spec_manifest_URL(package_hash, package_hash_value):
     return myURL, package_filename  
 
 # automatically download contents from the URL
-def download_from_URL(theURL, package, num, db, num_keys):
+def download_from_URL(theURL, package, is_spec=True):
 
-    # splits package_name by '/' character
-    package_name = package.split('/')[0]
+    # makes filename
+    # Example: 
+        # This -> "compiler-wrapper/compiler-wrapper-1.0-bsavlbvtqsc7yjtvka3ko3aem4wye2u3.spec.manifest.json"
+        # is turned into this -> "compiler-wrapper__compiler-wrapper-1.0-bsavlbvtqsc7yjtvka3ko3aem4wye2u3.spec.manifest.json"
+    package_name = package.replace('/', '__')
+
+    # if is_spec is true, meaning the file ends with ".spec.manifest.json",
+        # then the file is saved in SPEC_CACHE_DIR
+    # if the file ends with .tar.gz
+        # then the file is saved in BINARY_CACHE_DIR
+    cache_dir = SPEC_CACHE_DIR if is_spec else BINARY_CACHE_DIR
+
+    # full file path then is:
+        # "cache/spec_manifests/compiler-wrapper/compiler-wrapper-1.0-bsavlbvtqsc7yjtvka3ko3aem4wye2u3"
+    cached_path = os.path.join(cache_dir, package_name)
+
+    #if cache exists, it does not need to be redownloaded
+    if os.path.exists(cached_path):
+        print(f"Using cached file: {cached_path}")
+
+        # rb is read binary
+        with open(cached_path, "rb") as f:
+            return f.read()
 
     try:
         response = requests.get(theURL, verify=False)
@@ -95,6 +131,11 @@ def download_from_URL(theURL, package, num, db, num_keys):
         # response.status_code of 404 means does not exist
         if response.status_code == 200:
             
+            # saves to cache if request is successful
+            # wb is write binary
+            with open(cached_path, "wb") as f:
+                f.write(response.content)
+
             return response.content  
 
         else:
@@ -110,7 +151,7 @@ def download_from_URL(theURL, package, num, db, num_keys):
         # return None to stop process due to download failing
         return None
 
-
+# remove unnecessary lines in file
 def remove_lines_spec_manifest(myfile):
     
     # removes unnecessary bytes
@@ -121,7 +162,7 @@ def remove_lines_spec_manifest(myfile):
 
     return database
 
-
+# returns checksum, sha256 hash used to download the binary tarball
 def access_spec_manifest_media_type(db):
 
     try:
@@ -137,6 +178,7 @@ def access_spec_manifest_media_type(db):
     except Exception as e:
         print(f"Error occured in access_spec_manifest_media_type: {e}")
 
+# uses checksum returned to generate URL for binary tarball download
 def make_binary_package_URL(package_zip_hash):
 # example URL for compiler-wrapper binary package:
 # https://binaries.spack.io/develop/blobs/sha256/f4/f4d1969c7a82c76b962ae969c91d7b54cc11e0ce9f1ec9277789990f58aab351
@@ -213,26 +255,19 @@ def remove_placeholder_directories(i, name, package):
         print(f"Error in remove_placeholder_directories: {e}")
     
 
-def print_files(package_number, database, num_keys):
-
-    # installs here are all the packages in the input database
-    # package_name is the package_hash of the package
-    installs, package_name = get_package(package_number, database)
-
-    # package_value is the value of the key, the key is the package_name
-    package_value = get_package_value(installs, package_name)
+def print_files(package_hash, package_value):
     
     # returns the URL for the spec manifest file and the package_filename
-    theURL, package_filename = make_spec_manifest_URL(package_name, package_value)
+    theURL, package_filename = make_spec_manifest_URL(package_hash, package_value)
 
     # download the spec manifest json for the package of interest
     #temp = download_from_URL(theURL, package_filename)
-    temp = download_from_URL(theURL, package_filename, package_number, database, num_keys)
+    temp = download_from_URL(theURL, package_filename, is_spec = True)
     
 
     # return if URL does not exist
     if temp is None:
-        print(f"Skipping package {package_filename} due to download failure. \n")
+        print(f"Skipping package {package_filename}\n")
 
         # exit print_files function and goes back to run_program function
         return
@@ -253,41 +288,68 @@ def print_files(package_number, database, num_keys):
     binary_package_URL = make_binary_package_URL(package_zip_hash)
 
     # download the binary package file from the generated URL
-    tempbinary = download_from_URL(binary_package_URL, package_filename, package_number, database, num_keys)
+    tempbinary = download_from_URL(binary_package_URL, package_filename, is_spec = False)
 
     # read the binary package
     read_binary_package(tempbinary, package_filename)
 
 # program dispatcher
-def run_program(package_number, database, num_keys):
+def run_program(package_hash, database):
+    installs = database['database']['installs']
 
-    if package_number < num_keys:
-
-        print_files(package_number, database, num_keys)
+    # gets installs key value, aka name of package, version, etc.
+    package_value = installs[package_hash]
+    print_files(package_hash, package_value)
 
 
 def main():
-    file_name = "myMedjson.json"
+    # file_name = "myMedjson.json"
     # file_name = "myjson.json"
     # file_name = 'Med_w_compilerwrapper_packages_at_end.json'
-    # file_name = "e2a6969c742c8ee33deba2d210ce2243cd3941c6553a3ffc53780ac6463537a9"
+    file_name = "e2a6969c742c8ee33deba2d210ce2243cd3941c6553a3ffc53780ac6463537a9"
 
-    package_number = 0
-    # package_number2 = 2000
-    # package_number3 = 20
-    # package_number4 = 35
-    # package_number5 = 127000
     database = readmyfile(file_name)
 
-    num_keys = len(database['database']['installs'])
+    # lists install keys
+    install_keys = list(database['database']['installs'])
+    num_keys = len(install_keys)
 
-    for package_number in range(num_keys):
-        
-        print(f"package {package_number+1} out of {num_keys} packages\n")
+    # load last processed package hash from checkpoint from cache if it exists
+    last_processed = load_checkpoint()
+    skip = True if last_processed else False
 
-        run_program(package_number, database, num_keys)
+    try:
+        for i, package_hash in enumerate(install_keys):
 
-    print("\nComplete")
+            # Skip previously completed packages until the last processed one
+            if skip:
+                print(f"Skipping {package_hash}")
+                if package_hash == last_processed:
+                    # start processing after the last one
+                    skip = False 
+                continue 
+
+            print(f"📦 package {i + 1} out of {num_keys} packages\n")
+
+            run_program(package_hash, database)
+
+            save_checkpoint(package_hash)
+
+    except KeyboardInterrupt:
+        print("\n🛑 Interrupted by user. Progress saved.")
+
+        if last_processed:
+            installs = database['database']['installs']
+            if last_processed in installs:
+                package_value = installs[last_processed]
+                package_name = package_value['spec']['name']
+                package_version = package_value['spec']['version']
+                print(f"Last checkpoint was: {package_name}-{package_version}, {last_processed}")
+            else:
+                print(f"Last checkpoint was: unknown, {last_processed}")
+                print(f"file may have changed since the last run")
+    finally:
+        print("\n🎊 Complete (or safely stopped). Script will resume where it left off.")
 
 if __name__ == "__main__":
     main()
@@ -298,7 +360,8 @@ if __name__ == "__main__":
     ## Steven and Monwen - scrapers, whenever there is a network request, save a copy of the file locally (currently doing this from inputting the file) but only use it
     ## when the program gets restarted - (if the file didn't exist - then we could have a directory where we have a copy of the stuff we downloaded )
 # can I also add the time it takes to run? 
-# can I have a calculation for how long it would take if I wanted to run it for 130464 files? - we're fetching the spec manifest files for each of these packages - 130thousean network requests - downloading the tarball is slow 
+# can I have a calculation for how long it would take if I wanted to run it for 130464 files? 
+### - we're fetching the spec manifest files for each of these packages - 130thousean network requests - downloading the tarball is slow 
 ## dont save the entire tarball - in the cache(local folder ) save the list of files - the tarball may take up a lot of space (may not want to save it)
 # look into timescaling pyramid - memory hierarchy (the peak is faster, bottom level is slowest - downloading stuff from the internet is very slow)
 # create a branch - commit files to branch on dapper
