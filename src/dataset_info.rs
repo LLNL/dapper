@@ -28,7 +28,7 @@ pub struct Dataset {
     pub filepath: PathBuf,
 }
 
-pub fn create_dataset_info(output_path: Option<PathBuf>) -> std::io::Result<()> {
+pub fn create_dataset_info(output_path: Option<PathBuf>) -> std::io::Result<bool> {
     let datasets = HashMap::new();
 
     // Create the struct to hold the dataset information in
@@ -38,23 +38,22 @@ pub fn create_dataset_info(output_path: Option<PathBuf>) -> std::io::Result<()> 
     };
 
     // Get the file path for the dataset_info toml file
-    let path = output_path.unwrap_or_else(|| PathBuf::from("dataset_info.toml"));
+    let path = output_path.unwrap_or_else(|| PathBuf::from("."));
     let file_path = path.join("dataset_info.toml");
 
     // Check if the file already exists
     if file_path.exists() {
         eprintln!("File '{}' already exists. Aborting.", file_path.display());
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::AlreadyExists,
-            "File already exists",
-        ));
+
+        // return ok if the file exist.
+        return Ok(false);
     }
 
     // if the file doesn't exist, then create the file and write the struct to it.
     let toml_string = to_string(&config).expect("Failed to open");
     let mut file = File::create(&file_path)?;
     file.write_all(toml_string.as_bytes())?;
-    Ok(())
+    Ok(true)
 }
 
 pub fn update_dataset_info(
