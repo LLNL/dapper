@@ -52,6 +52,7 @@ from typing import TypeVar, Callable, ParamSpec
 from typing import Generator, Iterable, Any
 from typing_extensions import Self
 
+from dapper_python.databases.database import Database
 from dapper_python.normalize import normalize_file_name
 
 
@@ -82,74 +83,21 @@ class FileDetails:
 
 
 
-T = TypeVar("T")
-P = ParamSpec("P")
-class PyPIDatabase:
+class PyPIDatabase(Database):
     """Handles reading from and writing to the database
 
-    SQLite doesn't support stored procedures, so this class contains several pre-defined function (e.g add_package_imports)
+    SQLite doesn't support stored procedures, so this class contains several pre-defined functions (e.g add_package_imports)
     Which take their place of an API-of-sorts for an operation with several backend steps
-
-    Connection opening/closing is handled using context manager
-    So it should be used as
-    with PyPIDatabase(<db_path>) as db: #Database is opened here
-        <code>
-    #Database is closed here
     """
 
-    class TransactionCursor(sqlite3.Cursor):
-        """A modified subclass of sqlite3.Cursor that adds support for transaction handling inside a context manager
-
-        The PyPIDatabase class already uses the context manager to handle database opening/closing
-        So it can't be used in the same way that the sqlite3.Connection class does to handle transactions
-
-        Since the cursor class does not implement its own context manager (and is normally used to run commands anyway)
-        It is used to add similar functionality
-
-        This allows for running multiple commands inside the context which will all be treated as part of a transaction
-        Then upon exiting, all changes are commited, or if an exception occurs, the transaction is rolled back and none are commited
-        This helps ensure atomicity with multiple commands
-        """
-        def __enter__(self) -> Self:
-            self.connection.__enter__()
-            return self
-
-        def __exit__(self, exc_type, exc_val, exc_tb) -> Literal[False]:
-            self.connection.__exit__(exc_type, exc_val, exc_tb)
-            return False
-
-    @staticmethod
-    def _requires_connection(func:Callable[[P], T]) -> Callable[[P], T]:
-        """Wrapper function which is used to decorate functions that require a database connection to work
-        If a decorated function is called when the database is not open/connected, then an exception is raised
-        """
-        @functools.wraps(func)
-        def wrapper(self:PyPIDatabase, *args:P.args, **kwargs:P.kwargs) -> T:
-            if self._database is None:
-                raise sqlite3.ProgrammingError("Cannot operate on a closed database")
-            return func(self, *args, **kwargs)
-        return wrapper
-
     def __init__(self, db_path:Path):
-        self._db_path = db_path
-        self._database:sqlite3.Connection|None = None
-
-    def __enter__(self) -> Self:
-        self._database = sqlite3.connect(self._db_path)
+        super().__init__(db_path, mode='rwc')
         self._init_database()
-        return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> Literal[False]:
-        if self._database is not None:
-            self._database.close()
-            self._database = None
-        return False
-
-    @_requires_connection
     def _init_database(self) -> None:
         """Initializes the database to create the required tables, indexes, and views
         """
-        with self.get_cursor() as cursor:
+        with self.cursor() as cursor:
             #The last_serial column is used for checking values when resuming from a partially-built DB or updating the DB
             create_table_cmd = """
                 CREATE TABLE
@@ -241,9 +189,8 @@ class PyPIDatabase:
             cursor.execute(create_table_cmd)
 
 
-    @_requires_connection
     def set_version(self, version:int) -> None:
-        with self.get_cursor() as cursor:
+        with self.cursor() as cursor:
             #We only want a single version information row, so if the table already has values, clear it
             metadata_remove_cmd = """
                 DELETE FROM dataset_version
@@ -256,16 +203,6 @@ class PyPIDatabase:
             """
             cursor.execute(metadata_add_cmd, (version, int(datetime.now().timestamp())))
 
-    @_requires_connection
-    def get_cursor(self) -> TransactionCursor:
-        """Gets a cursor for interacting with the database
-        Uses the TransactionCursor subclass to allow for automatic transaction handling
-
-        :return: Cursor object with additional support for use with a context manager to automatically run transactions
-        """
-        return self._database.cursor(factory=self.TransactionCursor)
-
-    @_requires_connection
     def get_processed_packages(self) -> Generator[tuple[str,int], None, None]:
         """Gets a list of all the packages that have been added to the database along with their serial number
 
@@ -274,18 +211,17 @@ class PyPIDatabase:
 
         :return: A generator of tuples with the format (package_name, serial)
         """
-        cursor = self.get_cursor()
+        cursor = self.cursor()
         package_query = """
             SELECT package_name, last_serial
             FROM packages
         """
         packages = (
             (package_name, last_serial)
-            for package_name, last_serial, *_ in cursor.execute(package_query).fetchall()
+            for package_name, last_serial, *_ in cursor.execute(package_query).fetchall_chunked()
         )
         yield from packages
 
-    @_requires_connection
     def add_package(self, package_details:PackageDetails) -> None:
         """Adds a package and import names to the database
 
@@ -298,7 +234,7 @@ class PyPIDatabase:
             #Nothing useful to add to the database
             return
 
-        with self.get_cursor() as cursor:
+        with self.cursor() as cursor:
             insert_package_cmd = """
                 INSERT INTO packages(package_name, last_serial)
                 values (?, ?)
@@ -326,7 +262,6 @@ class PyPIDatabase:
                 )
                 cursor.executemany(insert_file_cmd, data)
 
-    @_requires_connection
     def remove_packages(self, package_names:str|Iterable[str]) -> None:
         """Removes the specified package(s) from the database
 
@@ -338,7 +273,7 @@ class PyPIDatabase:
         if isinstance(package_names, str):
             package_names = (package_names, )
 
-        with self.get_cursor() as cursor:
+        with self.cursor() as cursor:
             remove_package_cmd = """
             DELETE FROM packages
             WHERE package_name = ?
