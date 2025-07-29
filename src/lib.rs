@@ -10,18 +10,30 @@ pub mod directory_info;
 pub mod file_path_utils;
 pub mod parsing;
 
+use crate::directory_info::get_base_directory;
 use std::collections::HashMap;
 use std::fs::metadata;
 use std::path::Path;
 use walkdir::WalkDir;
 
-use crate::directory_info::get_base_directory;
-
 pub fn run(arg_path: &str) {
     use crate::database::Database;
+    use crate::dataset_info::create_dataset_info;
     use crate::parsing::cpp_parser::CPPParser;
     use crate::parsing::parser::LibProcessor;
     use crate::parsing::python_parser::PythonParser;
+
+    // Initialize dataset_info.toml if it doesn't exist
+    let db_dir = get_base_directory().expect("Unable to get the user's local data directory");
+    match create_dataset_info(Some(db_dir.clone())) {
+        Ok(()) => println!("Created dataset_info.toml in {}", db_dir.display()),
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+            // File already exists, no need to print anything
+        }
+        Err(e) => {
+            eprintln!("Warning: Could not create dataset_info.toml: {e}");
+        }
+    }
 
     //C++ database/parser
     let db_dir = get_base_directory().expect("Unable to get the user's local data directory");
