@@ -43,10 +43,7 @@ pub fn create_dataset_info(output_path: Option<PathBuf>) -> std::io::Result<()> 
 
     // Check if the file already exists
     if file_path.exists() {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::AlreadyExists,
-            "",
-        ));
+        return Err(std::io::Error::new(std::io::ErrorKind::AlreadyExists, ""));
     }
 
     // if the file doesn't exist, then create the file and write the struct to it.
