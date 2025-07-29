@@ -28,7 +28,7 @@ pub struct Dataset {
     pub filepath: PathBuf,
 }
 
-pub fn create_dataset_info(output_path: Option<PathBuf>) -> std::io::Result<bool> {
+pub fn create_dataset_info(output_path: Option<PathBuf>) -> std::io::Result<()> {
     let datasets = HashMap::new();
 
     // Create the struct to hold the dataset information in
@@ -50,7 +50,7 @@ pub fn create_dataset_info(output_path: Option<PathBuf>) -> std::io::Result<bool
     let toml_string = to_string(&config).expect("Failed to open");
     let mut file = File::create(&file_path)?;
     file.write_all(toml_string.as_bytes())?;
-    Ok(true)
+    Ok(())
 }
 
 pub fn update_dataset_info(
