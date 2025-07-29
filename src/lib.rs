@@ -26,8 +26,10 @@ pub fn run(arg_path: &str) {
     // Initialize dataset_info.toml if it doesn't exist
     let db_dir = get_base_directory().expect("Unable to get the user's local data directory");
     match create_dataset_info(Some(db_dir.clone())) {
-        Ok(true) => println!("Created dataset_info.toml in {}", db_dir.display()),
-        Ok(false) => {}
+        Ok(()) => println!("Created dataset_info.toml in {}", db_dir.display()),
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+            // File already exists, no need to print anything
+        }
         Err(e) => {
             eprintln!("Warning: Could not create dataset_info.toml: {e}");
         }
