@@ -17,24 +17,21 @@ use std::path::Path;
 use walkdir::WalkDir;
 
 
-pub fn run(arg_path: &str) {
+pub fn run(arg_path: &str, list_datasets: bool) {
     use crate::database::Database;
-    use crate::dataset_info::create_dataset_info;
+    use crate::dataset_info::{create_dataset_info, list_installed_datasets};
     use crate::parsing::cpp_parser::CPPParser;
     use crate::parsing::parser::LibProcessor;
     use crate::parsing::python_parser::PythonParser;
-    use crate::dataset_info::create_dataset_info;
 
-    // Initialize dataset_info.toml if it doesn't exist
-    let db_dir = get_base_directory().expect("Unable to get the user's local data directory");
-    match create_dataset_info(Some(db_dir.clone())) {
-        Ok(()) => println!("Created dataset_info.toml in {}", db_dir.display()),
-        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
-        // File already exists, which is fine - no need to print anything
-        },
-        Err(e) => {
-            eprintln!("Warning: Could not create dataset_info.toml: {}", e);
+
+    // If list_datasets flag is set, returns the list
+    if list_datasets {
+        if let Err(e) = list_installed_datasets() {
+            eprintln!("Error: {}", e);
+            std::process::exit(1);
         }
+        return;
     }
 
     // Initialize dataset_info.toml if it doesn't exist
@@ -50,13 +47,11 @@ pub fn run(arg_path: &str) {
     }
 
     //C++ database/parser
-    let db_dir = get_base_directory().expect("Unable to get the user's local data directory");
     let db_path = db_dir.join("LinuxPackageDB.db");
     let os_database = Database::new(&db_path).expect("Unable to connect to C++ database");
     let cpp_parser = CPPParser::new(&os_database);
 
     //Python database/parser
-    let db_dir = get_base_directory().expect("Unable to get the user's local data directory");
     let db_path = db_dir.join("PyPIPackageDB.db");
     let python_database = Database::new(&db_path).expect("Unable to connect to Python database");
     let python_parser = PythonParser::new(&python_database, &os_database);

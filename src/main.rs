@@ -11,9 +11,12 @@ use clap::Parser;
 struct Args {
     #[arg(help = "The path to a directory or a file to be analyzed.", index = 1)]
     path: String,
+
+    #[arg(long, short = 'l', help = "List installed datasets")]
+    list_datasets: bool,
 }
 
 fn main() {
     let args = Args::parse();
-    dapper::run(&args.path);
+    dapper::run(&args.path, args.list_datasets);
 }
