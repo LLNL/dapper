@@ -15,7 +15,6 @@ use std::collections::HashMap;
 use std::fs::metadata;
 use std::path::Path;
 use walkdir::WalkDir;
-use crate::directory_info::get_base_directory;
 
 
 pub fn run(arg_path: &str) {
