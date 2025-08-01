@@ -16,12 +16,21 @@ use std::fs::metadata;
 use std::path::Path;
 use walkdir::WalkDir;
 
-pub fn run(arg_path: &str) {
+pub fn run(arg_path: &str, list_datasets: bool) {
     use crate::database::Database;
-    use crate::dataset_info::create_dataset_info;
+    use crate::dataset_info::{create_dataset_info, list_installed_datasets};
     use crate::parsing::cpp_parser::CPPParser;
     use crate::parsing::parser::LibProcessor;
     use crate::parsing::python_parser::PythonParser;
+
+    // If list_datasets flag is set, returns the list
+    if list_datasets {
+        if let Err(e) = list_installed_datasets() {
+            eprintln!("Error: {e}");
+            std::process::exit(1);
+        }
+        return;
+    }
 
     // Initialize dataset_info.toml if it doesn't exist
     let db_dir = get_base_directory().expect("Unable to get the user's local data directory");
@@ -36,13 +45,11 @@ pub fn run(arg_path: &str) {
     }
 
     //C++ database/parser
-    let db_dir = get_base_directory().expect("Unable to get the user's local data directory");
     let db_path = db_dir.join("LinuxPackageDB.db");
     let os_database = Database::new(&db_path).expect("Unable to connect to C++ database");
     let cpp_parser = CPPParser::new(&os_database);
 
     //Python database/parser
-    let db_dir = get_base_directory().expect("Unable to get the user's local data directory");
     let db_path = db_dir.join("PyPIPackageDB.db");
     let python_database = Database::new(&db_path).expect("Unable to connect to Python database");
     let python_parser = PythonParser::new(&python_database, &os_database);

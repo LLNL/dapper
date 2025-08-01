@@ -3,6 +3,7 @@
 //
 // SPDX-License-Identifier: MIT
 
+use crate::directory_info::get_base_directory;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -168,6 +169,86 @@ pub fn get_dataset_file_paths(
         .collect();
 
     Ok(file_paths)
+}
+
+pub fn list_installed_datasets() -> Result<(), Box<dyn Error>> {
+    let base_dir = get_base_directory().ok_or("Unable to get the user's local data directory")?;
+
+    let table = match read_dataset_info(Some(base_dir)) {
+        Ok(table) => table,
+        Err(_) => {
+            println!("No datasets installed. Use --download to get started.");
+            return Ok(());
+        }
+    };
+
+    let datasets = match table.get("datasets") {
+        Some(toml::Value::Table(datasets)) => datasets,
+        _ => {
+            println!("No datasets installed. Use --download to get started.");
+            return Ok(());
+        }
+    };
+
+    if datasets.is_empty() {
+        println!("No datasets installed. Use --download to get started");
+        return Ok(());
+    }
+
+    // Print header
+    println!(
+        "{:<20} {:<10} {:<10} {:<20} {:<30} {:<50}",
+        "NAME", "VERSION", "FORMAT", "TIMESTAMP", "CATEGORIES", "FILEPATH"
+    );
+    println!("{}", "-".repeat(140));
+
+    // Sort names
+    let mut names: Vec<&String> = datasets.keys().collect();
+    names.sort();
+
+    // Print each dataset
+    for name in names {
+        if let Some(toml::Value::Table(dataset_table)) = datasets.get(name) {
+            let version = dataset_table
+                .get("version")
+                .and_then(|v| v.as_integer())
+                .unwrap_or(0);
+
+            let format = dataset_table
+                .get("format")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown");
+
+            let timestamp = dataset_table
+                .get("timestamp")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown");
+
+            let categories = dataset_table
+                .get("categories")
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                })
+                .unwrap_or_else(|| String::from("none"));
+
+            let filepath = dataset_table
+                .get("filepath")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown");
+
+            println!(
+                    "{name:<20} {version:<10} {format:<10} {timestamp:<20} {categories:<30} {filepath:<50}"
+                );
+        }
+    }
+
+    println!("\n{} dataset(s) installed", datasets.len());
+
+    Ok(())
 }
 
 // Unit tests
