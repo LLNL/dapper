@@ -1,3 +1,85 @@
-[metadata]
-version = "1.0"
-last_updated = "2025-05-17"
+schema_version = 1
+
+[datasets.debian-bookworm]
+version = "v1"
+filepath = "debian-bookworm"
+format = "sqlite"
+timestamp = "2025-04-09"
+categories = [
+    "os",
+    "linux",
+    "debian",
+]
+urls = ["https://huggingface.co/datasets/dapper-datasets/debian-bookworm/resolve/v1/debian-bookworm-v1.db.zip"]
+
+[datasets.pypi]
+version = "v1"
+filepath = "pypi"
+format = "sqlite"
+timestamp = "2025-06-20"
+categories = [
+    "language",
+    "python",
+    "pypi",
+]
+urls = ["https://huggingface.co/datasets/dapper-datasets/pypi/resolve/v1/pypi-v1.db.zip"]
+
+[datasets.debian-buster]
+version = "v1"
+filepath = "debian-buster"
+format = "sqlite"
+timestamp = "2025-04-09"
+categories = [
+    "os",
+    "linux",
+    "debian",
+]
+urls = ["https://huggingface.co/datasets/dapper-datasets/debian-buster/resolve/v1/debian-buster-v1.db.zip"]
+
+[datasets.ubuntu-jammy]
+version = "v1"
+filepath = "ubuntu-jammy"
+format = "sqlite"
+timestamp = "2025-04-09"
+categories = [
+    "os",
+    "linux",
+    "debian",
+]
+urls = ["https://huggingface.co/datasets/dapper-datasets/ubuntu-jammy/resolve/v1/ubuntu-jammy-v1.db.zip"]
+
+[datasets.debian-bullseye]
+version = "v1"
+filepath = "debian-bullseye"
+format = "sqlite"
+timestamp = "2025-04-09"
+categories = [
+    "os",
+    "linux",
+    "debian",
+]
+urls = ["https://huggingface.co/datasets/dapper-datasets/debian-bullseye/resolve/v1/debian-bullseye-v1.db.zip"]
+
+[datasets.ubuntu-noble]
+version = "v1"
+filepath = "ubuntu-noble"
+format = "sqlite"
+timestamp = "2025-04-09"
+categories = [
+    "os",
+    "linux",
+    "debian",
+]
+urls = ["https://huggingface.co/datasets/dapper-datasets/ubuntu-noble/resolve/v1/ubuntu-noble-v1.db.zip"]
+
+[datasets.ubuntu-focal]
+version = "v1"
+filepath = "ubuntu-focal"
+format = "sqlite"
+timestamp = "2025-04-09"
+categories = [
+    "os",
+    "linux",
+    "debian",
+]
+urls = ["https://huggingface.co/datasets/dapper-datasets/ubuntu-focal/resolve/v1/ubuntu-focal-v1.db.zip"]
