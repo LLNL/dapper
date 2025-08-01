@@ -12,7 +12,7 @@ use streaming_iterator::StreamingIterator;
 use rusqlite::params;
 use tree_sitter::{Parser, Query, QueryCapture, QueryCursor};
 
-use super::parser::{par_file_iter, LibProcessor};
+use super::parser::{dedup_nested_vec, par_file_iter, LibProcessor};
 use super::parser::{LangInclude, LibParser, SourceFinder, SystemProgram};
 
 use crate::database::Database;
@@ -32,6 +32,7 @@ pub struct CPPParser<'db> {
 struct LibEntry {
     package_name: String,
     file_path: String,
+    source_package_name: Option<String>,
 }
 
 //TODO: Is there a better way to organize/encapsulate this?
@@ -205,7 +206,20 @@ lazy_static::lazy_static! {
     ].into_iter().collect();
 }
 
-static BASE_DIRS: [&str; 3] = ["/bin", "/usr/bin", "/usr/include"];
+//Retrieved path may not include the '/' at the beginning
+//
+//This caused the matching to fail since "/usr/include" is different from "usr/include"
+//So include both the version with and without the '/' to catch both cases
+lazy_static::lazy_static! {
+    static ref BASE_DIRS: HashSet<&'static Path> = [
+        Path::new("/bin"),
+        Path::new("bin"),
+        Path::new("/usr/bin"),
+        Path::new("usr/bin"),
+        Path::new("/usr/include"),
+        Path::new("usr/include"),
+    ].into_iter().collect();
+}
 
 // tree-sitter query for called functions and their arguments
 lazy_static::lazy_static! {
@@ -289,10 +303,10 @@ impl<'db> CPPParser<'db> {
         {
             Ok(content) => content,
             Err(e) =>
-            {
-                eprintln!("Error reading {}: {}", file_path.to_str().unwrap(), e);
-                return calls;
-            }
+                {
+                    eprintln!("Error reading {}: {}", file_path.to_str().unwrap(), e);
+                    return calls;
+                }
         };
 
         // parse with tree-sitter
@@ -320,16 +334,16 @@ impl<'db> CPPParser<'db> {
                 match capture_name // set the func_name and args_node variables to what was in the capture
                 {
                     "function_name" =>
-                    {
-                        if let Ok(t) = node.utf8_text(source_code.as_bytes())
                         {
-                            func_name = Some(t.to_string());
+                            if let Ok(t) = node.utf8_text(source_code.as_bytes())
+                            {
+                                func_name = Some(t.to_string());
+                            }
                         }
-                    }
                     "arg_list" =>
-                    {
-                        args_node = Some(node);
-                    }
+                        {
+                            args_node = Some(node);
+                        }
                     _ => {}
                 }
             }
@@ -397,29 +411,30 @@ impl<'db> CPPParser<'db> {
 
             if let Some(parent) = file_path.parent() {
                 //Remove any multiarch elements
-                let (parent, _, _) = normalize_multiarch(parent.to_str().unwrap());
+                let (parent_str, _, _) = normalize_multiarch(parent.to_str().unwrap());
+                let parent = Path::new(&parent_str);
 
                 //If the lib is directly in one of the base dirs, it's the best match
                 if BASE_DIRS.iter().any(|&s| parent == s) {
-                    ranked_libs[0].push(lib.package_name);
+                    ranked_libs[0].push(lib.source_package_name.unwrap_or(lib.package_name));
                 }
                 //Anything under the base directories with further subdirectories is next-best
                 else if BASE_DIRS.iter().any(|&s| parent.starts_with(s)) {
-                    ranked_libs[1].push(lib.package_name);
+                    ranked_libs[1].push(lib.source_package_name.unwrap_or(lib.package_name));
                 }
                 //Anything else gets put in the lowest priority bucket
                 else if let Some(bucket) = ranked_libs.last_mut() {
-                    bucket.push(lib.package_name);
+                    bucket.push(lib.source_package_name.unwrap_or(lib.package_name));
                 }
 
             //Catchall
             } else if let Some(bucket) = ranked_libs.last_mut() {
-                bucket.push(lib.package_name);
+                bucket.push(lib.source_package_name.unwrap_or(lib.package_name));
             }
         }
 
         ranked_libs.retain(|sub| !sub.is_empty());
-        ranked_libs
+        dedup_nested_vec(ranked_libs)
     }
 
     fn process_files<T>(&self, file_paths: T) -> HashMap<LangInclude, Vec<Vec<String>>>
@@ -450,7 +465,7 @@ impl<'db> CPPParser<'db> {
         let mut sql_statement = self
             .database
             .prepare_cached_statement(
-                "SELECT package_name, file_path FROM package_files WHERE file_name = ?1",
+                "SELECT package_name, file_path, source_package_name FROM v_package_files WHERE file_name = ?1",
             )
             .expect("Error loading SQL statement");
 
@@ -460,6 +475,7 @@ impl<'db> CPPParser<'db> {
                     Ok(LibEntry {
                         package_name: row.get(0)?,
                         file_path: row.get(1)?,
+                        source_package_name: row.get(2)?,
                     })
                 })?
                 .collect()

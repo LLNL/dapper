@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: MIT
 
 use std::collections::{HashMap, HashSet};
+use std::hash::Hash;
 use std::iter;
 use std::path::{Path, PathBuf};
 use walkdir;
@@ -156,4 +157,30 @@ where
     file_paths
         .par_iter()
         .for_each(|file_path| closure(file_path.as_path()));
+}
+
+/// Helper function for removing duplicate entries from nested vectors
+/// Keeps only the first occurrence and removes any future occurrences across all sub-vectors
+///
+/// Used to clean up ranked package matches, especially if multiple packages come from the same parent package
+pub(crate) fn dedup_nested_vec<T>(input: Vec<Vec<T>>) -> Vec<Vec<T>>
+where
+    T: Eq + Hash + Clone,
+{
+    let mut seen = HashSet::new();
+    let mut result = Vec::with_capacity(input.len());
+
+    for inner in input {
+        let mut filtered = Vec::with_capacity(inner.len());
+        for item in inner {
+            if seen.insert(item.clone()) {
+                filtered.push(item);
+            }
+        }
+        if !filtered.is_empty() {
+            result.push(filtered);
+        }
+    }
+
+    result
 }
