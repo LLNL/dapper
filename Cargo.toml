@@ -1,6 +1,6 @@
 [package]
 name = "dapper"
-version = "0.0.0-pre.1"
+version = "0.0.0-pre.2"
 edition = "2021"
 license = "MIT"
 description = "Dependency Analysis Project - identifying dependencies in C/C++ code and packages on filesystems"
