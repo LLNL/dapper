@@ -3,7 +3,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-use crate::directory_info::get_base_directory;
+// use crate::directory_info::get_base_directory;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -13,18 +13,18 @@ use std::fs::File;
 use std::io::{self, Write};
 use std::path::PathBuf;
 use toml::to_string;
-use toml::Table;
+// use toml::Table;
 
 #[derive(Serialize, Deserialize, Debug)]
-struct Config {
-    schema_version: u8,
-    datasets: HashMap<String, Dataset>,
+pub struct Config {
+    pub schema_version: u8,
+    pub datasets: HashMap<String, Dataset>,
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Dataset {
     pub version: u8,
     pub format: String,
-    pub timestamp: DateTime<Utc>,
+    pub timestamp: Option<DateTime<Utc>>,
     pub categories: Vec<String>,
     pub filepath: PathBuf,
 }
@@ -57,9 +57,7 @@ pub fn create_dataset_info(output_path: Option<PathBuf>) -> std::io::Result<()> 
 pub fn update_dataset_info(
     base_dir: Option<PathBuf>,
     dataset_name: &str,
-    new_format: Option<&str>,
-    new_category: Option<&str>,
-    new_dataset_file_path: Option<PathBuf>,
+    new_dataset: Dataset,
     add_new_dataset: bool,
 ) -> io::Result<()> {
     // Read the TOML file into a string
@@ -73,28 +71,14 @@ pub fn update_dataset_info(
     // Check if the dataset exists
     if let Some(dataset) = config.datasets.get_mut(dataset_name) {
         // If the dataset exists, update its fields
-        if let Some(format) = new_format {
-            dataset.format = format.to_string();
-        }
-        if let Some(category) = new_category {
-            dataset.categories.push(category.to_string());
-        }
+        *dataset = new_dataset;
     } else if add_new_dataset {
         // If the dataset does not exist and the user wants to add a new one
-        let new_dataset = Dataset {
-            version: 1,
-            format: new_format.unwrap_or("default_format").to_string(),
-            timestamp: Utc::now(),
-            categories: new_category
-                .map(|cat| vec![cat.to_string()])
-                .unwrap_or_default(),
-            filepath: new_dataset_file_path.unwrap_or_else(|| PathBuf::from("default/path")),
-        };
         config
             .datasets
             .insert(dataset_name.to_string(), new_dataset);
     } else {
-        // If the dataset does not exist and the user does not want to add a new one
+        // Dataset doesn't exist and we don't want to add it
         eprintln!("Dataset '{dataset_name}' does not exist and 'add_new_dataset' is false.");
         return Err(io::Error::new(io::ErrorKind::NotFound, "Dataset not found"));
     }
@@ -110,15 +94,15 @@ pub fn update_dataset_info(
     Ok(())
 }
 
-pub fn read_dataset_info(path: Option<PathBuf>) -> Result<Table, Box<dyn Error>> {
+pub fn read_dataset_info(path: Option<PathBuf>) -> Result<Config, Box<dyn Error>> {
     // Clean up the file path
     let path = path.unwrap_or_else(|| PathBuf::from("dataset_info.toml"));
     let file_path = path.join("dataset_info.toml");
     // Read the file into a string
     let content = std::fs::read_to_string(file_path.clone())?;
-    println!("file read successful");
+    // println!("file read successful");
     // Convert the contents of the file into a Table
-    let config: Table = content.parse()?;
+    let config: Config = toml::from_str(&content)?;
     Ok(config)
 }
 
@@ -171,86 +155,6 @@ pub fn get_dataset_file_paths(
     Ok(file_paths)
 }
 
-pub fn list_installed_datasets() -> Result<(), Box<dyn Error>> {
-    let base_dir = get_base_directory().ok_or("Unable to get the user's local data directory")?;
-
-    let table = match read_dataset_info(Some(base_dir)) {
-        Ok(table) => table,
-        Err(_) => {
-            println!("No datasets installed. Use --download to get started.");
-            return Ok(());
-        }
-    };
-
-    let datasets = match table.get("datasets") {
-        Some(toml::Value::Table(datasets)) => datasets,
-        _ => {
-            println!("No datasets installed. Use --download to get started.");
-            return Ok(());
-        }
-    };
-
-    if datasets.is_empty() {
-        println!("No datasets installed. Use --download to get started");
-        return Ok(());
-    }
-
-    // Print header
-    println!(
-        "{:<20} {:<10} {:<10} {:<20} {:<30} {:<50}",
-        "NAME", "VERSION", "FORMAT", "TIMESTAMP", "CATEGORIES", "FILEPATH"
-    );
-    println!("{}", "-".repeat(140));
-
-    // Sort names
-    let mut names: Vec<&String> = datasets.keys().collect();
-    names.sort();
-
-    // Print each dataset
-    for name in names {
-        if let Some(toml::Value::Table(dataset_table)) = datasets.get(name) {
-            let version = dataset_table
-                .get("version")
-                .and_then(|v| v.as_integer())
-                .unwrap_or(0);
-
-            let format = dataset_table
-                .get("format")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown");
-
-            let timestamp = dataset_table
-                .get("timestamp")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown");
-
-            let categories = dataset_table
-                .get("categories")
-                .and_then(|v| v.as_array())
-                .map(|arr| {
-                    arr.iter()
-                        .filter_map(|v| v.as_str())
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                })
-                .unwrap_or_else(|| String::from("none"));
-
-            let filepath = dataset_table
-                .get("filepath")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown");
-
-            println!(
-                    "{name:<20} {version:<10} {format:<10} {timestamp:<20} {categories:<30} {filepath:<50}"
-                );
-        }
-    }
-
-    println!("\n{} dataset(s) installed", datasets.len());
-
-    Ok(())
-}
-
 // Unit tests
 #[cfg(test)]
 mod tests {
@@ -290,14 +194,16 @@ mod tests {
         create_dataset_info(Some(output_path.clone())).unwrap();
 
         // Update dataset_info by adding a new dataset
-        let result = update_dataset_info(
-            Some(output_path.clone()),
-            "test_dataset",
-            Some("json"),
-            Some("test_category"),
-            Some(PathBuf::from("test/path")),
-            true,
-        );
+        let new_dataset = Dataset {
+            version: 1,
+            format: "json".to_string(),
+            timestamp: None,
+            categories: vec!["test_category".to_string()],
+            filepath: PathBuf::from("test/path"),
+        };
+
+        let result =
+            update_dataset_info(Some(output_path.clone()), "test_dataset", new_dataset, true);
         assert!(result.is_ok(), "Updating dataset_info should succeed");
 
         // Verify the contents
@@ -329,23 +235,36 @@ mod tests {
 
         // Create dataset_info file with an initial dataset
         create_dataset_info(Some(output_path.clone())).unwrap();
+
+        let initial_dataset = Dataset {
+            version: 1,
+            format: "json".to_string(),
+            timestamp: None,
+            categories: vec!["test_category".to_string()],
+            filepath: PathBuf::from("test/path"),
+        };
+
         update_dataset_info(
             Some(output_path.clone()),
             "test_dataset",
-            Some("json"),
-            Some("test_category"),
-            Some(PathBuf::from("test/path")),
+            initial_dataset,
             true,
         )
         .unwrap();
 
         // Update the existing dataset
+        let updated_dataset = Dataset {
+            version: 2,
+            format: "sqlite".to_string(),
+            timestamp: None,
+            categories: vec!["test_category".to_string(), "new_category".to_string()],
+            filepath: PathBuf::from("test/path"),
+        };
+
         let result = update_dataset_info(
             Some(output_path.clone()),
             "test_dataset",
-            Some("sqlite"),
-            Some("new_category"),
-            None,
+            updated_dataset,
             false,
         );
         assert!(result.is_ok(), "Updating existing dataset should succeed");
@@ -376,11 +295,7 @@ mod tests {
         assert!(result.is_ok(), "Reading dataset_info should succeed");
 
         let config = result.unwrap();
-        assert_eq!(
-            config["schema_version"].as_integer().unwrap(),
-            1,
-            "Schema version should be 1"
-        );
+        assert_eq!(config.schema_version, 1, "Schema version should be 1");
     }
 
     #[test]
@@ -390,24 +305,26 @@ mod tests {
 
         // Create dataset_info file with two datasets
         create_dataset_info(Some(output_path.clone())).unwrap();
-        update_dataset_info(
-            Some(output_path.clone()),
-            "dataset1",
-            Some("json"),
-            Some("category1"),
-            Some(PathBuf::from("path1")),
-            true,
-        )
-        .unwrap();
-        update_dataset_info(
-            Some(output_path.clone()),
-            "dataset2",
-            Some("json"),
-            Some("category2"),
-            Some(PathBuf::from("path2")),
-            true,
-        )
-        .unwrap();
+
+        let dataset1 = Dataset {
+            version: 1,
+            format: "json".to_string(),
+            timestamp: None,
+            categories: vec!["category1".to_string()],
+            filepath: PathBuf::from("path1"),
+        };
+
+        update_dataset_info(Some(output_path.clone()), "dataset1", dataset1, true).unwrap();
+
+        let dataset2 = Dataset {
+            version: 1,
+            format: "json".to_string(),
+            timestamp: None,
+            categories: vec!["category2".to_string()],
+            filepath: PathBuf::from("path2"),
+        };
+
+        update_dataset_info(Some(output_path.clone()), "dataset2", dataset2, true).unwrap();
 
         // Search for datasets in "category1"
         let result = search_dataset_by_category(output_path.join("dataset_info.toml"), "category1");
@@ -428,24 +345,26 @@ mod tests {
 
         // Create dataset_info file with two datasets
         create_dataset_info(Some(output_path.clone())).unwrap();
-        update_dataset_info(
-            Some(output_path.clone()),
-            "dataset1",
-            Some("json"),
-            Some("category1"),
-            Some(PathBuf::from("path1")),
-            true,
-        )
-        .unwrap();
-        update_dataset_info(
-            Some(output_path.clone()),
-            "dataset2",
-            Some("json"),
-            Some("category2"),
-            Some(PathBuf::from("path2")),
-            true,
-        )
-        .unwrap();
+
+        let dataset1 = Dataset {
+            version: 1,
+            format: "json".to_string(),
+            timestamp: None,
+            categories: vec!["category1".to_string()],
+            filepath: PathBuf::from("path1"),
+        };
+
+        update_dataset_info(Some(output_path.clone()), "dataset1", dataset1, true).unwrap();
+
+        let dataset2 = Dataset {
+            version: 1,
+            format: "json".to_string(),
+            timestamp: None,
+            categories: vec!["category2".to_string()],
+            filepath: PathBuf::from("path2"),
+        };
+
+        update_dataset_info(Some(output_path.clone()), "dataset2", dataset2, true).unwrap();
 
         // Get file paths for all datasets
         let result = get_dataset_file_paths(output_path.join("dataset_info.toml"), None);

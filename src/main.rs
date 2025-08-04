@@ -14,9 +14,34 @@ struct Args {
 
     #[arg(long, short = 'l', help = "List installed datasets")]
     list_datasets: bool,
+
+    #[arg(long, help = "List available datasets")]
+    list_available_datasets: bool,
+
+    #[arg(
+        long,
+        help = "Install dataset(s) from remote catalog (use 'all' to install all datasets)"
+    )]
+    install: Option<String>,
+
+    #[arg(long, help = "Uninstall a specific dataset")]
+    uninstall: Option<String>,
+
+    #[arg(
+        long,
+        help = "Update dataset(s) to latest version (use 'all' to update all datasets)"
+    )]
+    update: Option<String>,
 }
 
 fn main() {
     let args = Args::parse();
-    dapper::run(&args.path, args.list_datasets);
+    dapper::run(
+        &args.path,
+        args.list_datasets,
+        args.list_available_datasets,
+        args.install,
+        args.uninstall,
+        args.update,
+    );
 }
