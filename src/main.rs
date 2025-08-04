@@ -14,9 +14,12 @@ struct Args {
 
     #[arg(long, short = 'l', help = "List installed datasets")]
     list_datasets: bool,
+
+    #[arg(long, help = "List available datasets")]
+    list_available_datasets: bool,
 }
 
 fn main() {
     let args = Args::parse();
-    dapper::run(&args.path, args.list_datasets);
+    dapper::run(&args.path, args.list_datasets, args.list_available_datasets);
 }

@@ -15,6 +15,8 @@ use std::path::PathBuf;
 use toml::to_string;
 use toml::Table;
 
+const DATASET_LIST_URL: &str = "https://dapper.readthedocs.io/en/latest/dataset_list.toml";
+
 #[derive(Serialize, Deserialize, Debug)]
 struct Config {
     schema_version: u8,
@@ -247,6 +249,130 @@ pub fn list_installed_datasets() -> Result<(), Box<dyn Error>> {
     }
 
     println!("\n{} dataset(s) installed", datasets.len());
+
+    Ok(())
+}
+
+pub fn list_available_datasets(filter: Option<&str>) -> Result<(), Box<dyn Error>> {
+    println!("Fetching available datasets from remote catalog...");
+
+    let response = reqwest::blocking::get(DATASET_LIST_URL)
+        .map_err(|e| format!("Failed to fetch dataset catalog: {e}"))?;
+
+    if !response.status().is_success() {
+        return Err(format!(
+            "Failed to fetch dataset catalog: HTTP {}",
+            response.status()
+        )
+        .into());
+    }
+
+    let content = response
+        .text()
+        .map_err(|e| format!("Failed to read response: {e}"))?;
+
+    let remote_table: Table = content
+        .parse()
+        .map_err(|e| format!("Failed to parse remote catalog: {e}"))?;
+
+    let remote_datasets = match remote_table.get("datasets") {
+        Some(toml::Value::Table(datasets)) => datasets,
+        _ => {
+            println!("No datasets available in remote catalog.");
+            return Ok(());
+        }
+    };
+
+    if remote_datasets.is_empty() {
+        println!("No datasets available in remote catalog.");
+        return Ok(());
+    }
+
+    let mut names: Vec<&String> = remote_datasets
+        .keys()
+        .filter(|name| {
+            if let Some(f) = filter {
+                name.to_lowercase().contains(&f.to_lowercase())
+            } else {
+                true
+            }
+        })
+        .collect();
+    names.sort();
+
+    if names.is_empty() {
+        println!("No datasets found matching filter: '{}'", filter.unwrap());
+        return Ok(());
+    }
+
+    if let Some(f) = filter {
+        println!("Available datasets (filtered by '{}'):\n", f);
+    } else {
+        println!("Available datasets:\n");
+    }
+
+    println!("{}", "=".repeat(80));
+
+    for (index, &name) in names.iter().enumerate() {
+        if let Some(toml::Value::Table(dataset_table)) = remote_datasets.get(name) {
+            println!("Dataset: {name}");
+
+            if let Some(toml::Value::String(v)) = dataset_table.get("version") {
+                println!("Version: {v}");
+            }
+
+            if let Some(toml::Value::String(f)) = dataset_table.get("format") {
+                println!("Format: {f}");
+            }
+
+            if let Some(toml::Value::String(t)) = dataset_table.get("timestamp") {
+                println!("Timestamp: {t}");
+            }
+
+            if let Some(toml::Value::String(fp)) = dataset_table.get("filepath") {
+                println!("Filepath: {fp}");
+            }
+
+            if let Some(toml::Value::Array(cats)) = dataset_table.get("categories") {
+                let cat_strs: Vec<&str> = cats
+                    .iter()
+                    .filter_map(|v| {
+                        if let toml::Value::String(s) = v {
+                            Some(s.as_str())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                let categories = cat_strs.join(", ");
+                println!("Categories: {categories}");
+            }
+
+            if let Some(toml::Value::Array(urls)) = dataset_table.get("urls") {
+                println!("URLs:");
+                for url in urls {
+                    if let toml::Value::String(u) = url {
+                        println!("  - {u}");
+                    }
+                }
+            }
+
+            if index < names.len() - 1 {
+                println!("{}", "-".repeat(80));
+            }
+        }
+    }
+
+    println!("{}", "=".repeat(80));
+
+    if let Some(f) = filter {
+        let total = remote_datasets.len();
+        let filtered = names.len();
+        println!("\n{filtered} dataset(s) found matching '{f}' (out of {total} total)");
+    } else {
+        let count = names.len();
+        println!("\n{count} dataset(s) available");
+    }
 
     Ok(())
 }

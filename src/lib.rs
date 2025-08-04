@@ -16,12 +16,27 @@ use std::fs::metadata;
 use std::path::Path;
 use walkdir::WalkDir;
 
-pub fn run(arg_path: &str, list_datasets: bool) {
+pub fn run(arg_path: &str, list_datasets: bool, remote_datasets: bool) {
     use crate::database::Database;
-    use crate::dataset_info::{create_dataset_info, list_installed_datasets};
+    use crate::dataset_info::{
+        create_dataset_info, list_available_datasets, list_installed_datasets,
+    };
     use crate::parsing::cpp_parser::CPPParser;
     use crate::parsing::parser::LibProcessor;
     use crate::parsing::python_parser::PythonParser;
+
+    if remote_datasets {
+        let filter = if arg_path == "." {
+            None
+        } else {
+            Some(arg_path)
+        };
+        if let Err(e) = list_available_datasets(filter) {
+            eprintln!("Error: {e}");
+            std::process::exit(1);
+        }
+        return;
+    }
 
     // If list_datasets flag is set, returns the list
     if list_datasets {
