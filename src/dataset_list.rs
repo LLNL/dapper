@@ -38,10 +38,10 @@ where
             }
 
             // Handle simple Date String to make a DateTime Object
-            let date_str = format!("{} 00:00:00 +0000", s);
+            let date_str = format!("{s} 00:00:00 +0000");
             DateTime::parse_from_str(&date_str, "%Y-%m-%d %H:%M:%S %z")
                 .map(|dt| Some(dt.with_timezone(&Utc)))
-                .map_err(|e| de::Error::custom(format!("Invalid timestamp format: {}", e)))
+                .map_err(|e| de::Error::custom(format!("Invalid timestamp format: {e}")))
         }
         None => Ok(None),
     }

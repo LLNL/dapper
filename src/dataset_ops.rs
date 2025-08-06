@@ -49,14 +49,14 @@ pub fn list_available_datasets(_filter: Option<&str>) -> Result<(), Box<dyn Erro
 }
 
 pub fn install_dataset(dataset_name: &str, prompt: bool) -> Result<(), Box<dyn Error>> {
-    println!("Installing dataset: {}", dataset_name);
+    println!("Installing dataset: {dataset_name}");
 
     let base_dir = get_base_directory().ok_or("Unable to get the user's local data directory")?;
 
     // Check if dataset already exists
     if dataset_exists(&base_dir, dataset_name) {
         if prompt {
-            let message = format!("Dataset '{}' already exists. Overwrite?", dataset_name);
+            let message = format!("Dataset '{dataset_name}' already exists. Overwrite?");
             let update = prompt_user(&message, false);
             if !update {
                 println!("Installation cancelled.");
@@ -72,7 +72,7 @@ pub fn install_dataset(dataset_name: &str, prompt: bool) -> Result<(), Box<dyn E
     let dataset = catalog
         .datasets
         .get(dataset_name)
-        .ok_or_else(|| format!("Dataset '{}' not found in remote catalog", dataset_name))?;
+        .ok_or_else(|| format!("Dataset '{dataset_name}' not found in remote catalog"))?;
 
     let version = parse_version(&dataset.version)?;
     let format = &dataset.format;
@@ -83,7 +83,7 @@ pub fn install_dataset(dataset_name: &str, prompt: bool) -> Result<(), Box<dyn E
         .ok_or("No download URL found in dataset")?;
 
     // Download the dataset
-    println!("Downloading from: {}", url);
+    println!("Downloading from: {url}");
     let download_response =
         reqwest::blocking::get(url).map_err(|e| format!("Failed to download dataset: {e}"))?;
 
@@ -96,7 +96,7 @@ pub fn install_dataset(dataset_name: &str, prompt: bool) -> Result<(), Box<dyn E
     }
 
     // Saves it to tmp file
-    let temp_zip_path = base_dir.join(format!("{}.zip.tmp", dataset_name));
+    let temp_zip_path = base_dir.join(format!("{dataset_name}.zip.tmp"));
     let mut temp_file = File::create(&temp_zip_path)
         .map_err(|e| format!("Failed to create temporary file: {e}"))?;
 
@@ -131,9 +131,9 @@ pub fn install_dataset(dataset_name: &str, prompt: bool) -> Result<(), Box<dyn E
     // Extract the .db file
     let mut db_file = archive
         .by_name(&db_filename)
-        .map_err(|e| format!("Failed to find {} in archive: {e}", db_filename))?;
+        .map_err(|e| format!("Failed to find {db_filename} in archive: {e}"))?;
 
-    let db_path = base_dir.join(format!("{}.db", dataset_name));
+    let db_path = base_dir.join(format!("{dataset_name}.db"));
     let mut output_file =
         File::create(&db_path).map_err(|e| format!("Failed to create database file: {e}"))?;
 
@@ -148,13 +148,13 @@ pub fn install_dataset(dataset_name: &str, prompt: bool) -> Result<(), Box<dyn E
         dataset_name,
         Some(format),
         Some(categories.clone()),
-        Some(PathBuf::from(format!("{}.db", dataset_name))),
+        Some(PathBuf::from(format!("{dataset_name}.db"))),
         true,
         Some(version),
         dataset.timestamp,
     )?;
 
-    println!("Successfully installed dataset: {}", dataset_name);
+    println!("Successfully installed dataset: {dataset_name}");
     Ok(())
 }
 
@@ -177,7 +177,7 @@ pub fn install_all_datasets() -> Result<(), Box<dyn Error>> {
         match install_dataset(name, true) {
             Ok(_) => succeeded += 1,
             Err(e) => {
-                eprintln!("Failed to install {}: {}", name, e);
+                eprintln!("Failed to install {name}: {e}");
                 failed.push(name.clone());
             }
         }
@@ -185,13 +185,13 @@ pub fn install_all_datasets() -> Result<(), Box<dyn Error>> {
     }
 
     println!("Installation summary:");
-    println!("  Succeeded: {}", succeeded);
+    println!("  Succeeded: {succeeded}");
     println!("  Failed: {}", failed.len());
 
     if !failed.is_empty() {
         println!("\nFailed datasets:");
         for name in &failed {
-            println!("  - {}", name);
+            println!("  - {name}");
         }
     }
 
@@ -203,7 +203,7 @@ pub fn install_all_datasets() -> Result<(), Box<dyn Error>> {
 }
 
 pub fn uninstall_dataset(dataset_name: &str) -> Result<(), Box<dyn Error>> {
-    println!("Uninstalling dataset: {}", dataset_name);
+    println!("Uninstalling dataset: {dataset_name}");
 
     let base_dir = get_base_directory().ok_or("Unable to get the user's local data directory")?;
 
@@ -216,7 +216,7 @@ pub fn uninstall_dataset(dataset_name: &str) -> Result<(), Box<dyn Error>> {
     let dataset = config
         .datasets
         .get(dataset_name)
-        .ok_or_else(|| format!("Dataset '{}' is not installed", dataset_name))?;
+        .ok_or_else(|| format!("Dataset '{dataset_name}' is not installed"))?;
 
     let db_path = base_dir.join(&dataset.filepath);
 
@@ -239,7 +239,7 @@ pub fn uninstall_dataset(dataset_name: &str) -> Result<(), Box<dyn Error>> {
     fs::write(&dataset_info_path, updated_toml)
         .map_err(|e| format!("Failed to update dataset_info.toml: {e}"))?;
 
-    println!("Successfully uninstalled dataset: {}", dataset_name);
+    println!("Successfully uninstalled dataset: {dataset_name}");
     Ok(())
 }
 
@@ -260,7 +260,7 @@ pub fn update_dataset(
             config.datasets.get(dataset_name)
         }
     }
-    .ok_or_else(|| format!("Dataset '{}' is not installed", dataset_name))?;
+    .ok_or_else(|| format!("Dataset '{dataset_name}' is not installed"))?;
 
     // Use provided catalog or fetch it
     let catalog;
@@ -271,7 +271,7 @@ pub fn update_dataset(
             catalog.datasets.get(dataset_name)
         }
     }
-    .ok_or_else(|| format!("Dataset '{}' not found in remote catalog", dataset_name))?;
+    .ok_or_else(|| format!("Dataset '{dataset_name}' not found in remote catalog"))?;
 
     // Compare timestamps
     let needs_update = match (local_dataset.timestamp, remote_dataset.timestamp) {
@@ -281,7 +281,7 @@ pub fn update_dataset(
     };
 
     if !needs_update {
-        println!("Dataset '{}' is already up to date", dataset_name);
+        println!("Dataset '{dataset_name}' is already up to date");
         return Ok(false);
     }
 
@@ -296,8 +296,7 @@ pub fn update_dataset(
         .unwrap_or_else(|| "unknown".to_string());
 
     println!(
-        "Update available for '{}' (local: {}, remote: {})",
-        dataset_name, local_date, remote_date
+        "Update available for '{dataset_name}' (local: {local_date}, remote: {remote_date})"
     );
 
     // Perform update using install_dataset. No prompt
@@ -327,7 +326,7 @@ pub fn update_all_datasets(prompt: bool) -> Result<(), Box<dyn Error>> {
             Ok(true) => updated += 1,
             Ok(false) => up_to_date += 1,
             Err(e) => {
-                eprintln!("Failed to update {}: {}", dataset_name, e);
+                eprintln!("Failed to update {dataset_name}: {e}");
                 failed.push(dataset_name.clone());
             }
         }
@@ -336,14 +335,14 @@ pub fn update_all_datasets(prompt: bool) -> Result<(), Box<dyn Error>> {
     // Print summary
     println!("\nUpdate summary:");
     println!("  Total datasets: {}", installed_config.datasets.len());
-    println!("  Updated: {}", updated);
-    println!("  Already up to date: {}", up_to_date);
+    println!("  Updated: {updated}");
+    println!("  Already up to date: {up_to_date}");
     println!("  Failed: {}", failed.len());
 
     if !failed.is_empty() {
         println!("\nFailed updates:");
         for name in &failed {
-            println!("  - {}", name);
+            println!("  - {name}");
         }
     }
 
@@ -360,7 +359,7 @@ fn dataset_exists(base_dir: &Path, dataset_name: &str) -> bool {
 
 fn prompt_user(message: &str, default: bool) -> bool {
     let default_indicator = if default { "[Y/n]" } else { "[y/N]" };
-    print!("{} {}: ", message, default_indicator);
+    print!("{message} {default_indicator}: ");
     std::io::stdout().flush().unwrap();
 
     let mut input = String::new();
@@ -378,7 +377,7 @@ fn parse_version(version_str: &str) -> Result<u8, Box<dyn Error>> {
     let version_num = version_str.trim_start_matches('v');
     version_num
         .parse::<u8>()
-        .map_err(|e| format!("Failed to parse version '{}': {e}", version_str).into())
+        .map_err(|e| format!("Failed to parse version '{version_str}': {e}").into())
 }
 
 pub trait DatasetDisplay {
@@ -436,7 +435,7 @@ impl DatasetDisplay for Config {
             }
 
             let dataset = self.datasets.get(*name).unwrap();
-            println!("Dataset: {}", name);
+            println!("Dataset: {name}");
             println!("Version: {}", dataset.version);
             println!("Format: {}", dataset.format);
             println!(
@@ -506,7 +505,7 @@ impl DatasetDisplay for RemoteCatalog {
             }
 
             let dataset = self.datasets.get(*name).unwrap();
-            println!("Dataset: {}", name);
+            println!("Dataset: {name}");
             println!("Version: {}", dataset.version);
             println!("Format: {}", dataset.format);
             println!(
@@ -527,7 +526,7 @@ impl DatasetDisplay for RemoteCatalog {
             );
             println!("URLs:");
             for url in &dataset.urls {
-                println!("  - {}", url);
+                println!("  - {url}");
             }
         }
 
