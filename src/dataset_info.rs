@@ -3,7 +3,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-use crate::directory_info::get_base_directory;
+// use crate::directory_info::get_base_directory;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -13,20 +13,18 @@ use std::fs::File;
 use std::io::{self, Write};
 use std::path::PathBuf;
 use toml::to_string;
-use toml::Table;
-
-const DATASET_LIST_URL: &str = "https://dapper.readthedocs.io/en/latest/dataset_list.toml";
+// use toml::Table;
 
 #[derive(Serialize, Deserialize, Debug)]
-struct Config {
-    schema_version: u8,
-    datasets: HashMap<String, Dataset>,
+pub struct Config {
+    pub schema_version: u8,
+    pub datasets: HashMap<String, Dataset>,
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Dataset {
     pub version: u8,
     pub format: String,
-    pub timestamp: DateTime<Utc>,
+    pub timestamp: Option<DateTime<Utc>>,
     pub categories: Vec<String>,
     pub filepath: PathBuf,
 }
@@ -60,9 +58,11 @@ pub fn update_dataset_info(
     base_dir: Option<PathBuf>,
     dataset_name: &str,
     new_format: Option<&str>,
-    new_category: Option<&str>,
+    new_category: Option<Vec<String>>,
     new_dataset_file_path: Option<PathBuf>,
     add_new_dataset: bool,
+    new_version: Option<u8>,
+    new_timestamp: Option<DateTime<Utc>>,
 ) -> io::Result<()> {
     // Read the TOML file into a string
     let path = base_dir.unwrap_or_else(|| PathBuf::from("dataset_info.toml"));
@@ -78,18 +78,22 @@ pub fn update_dataset_info(
         if let Some(format) = new_format {
             dataset.format = format.to_string();
         }
-        if let Some(category) = new_category {
-            dataset.categories.push(category.to_string());
+        if let Some(categories) = new_category {
+            dataset.categories.extend(categories);
+        }
+        if let Some(version) = new_version {
+            dataset.version = version;
+        }
+        if let Some(timestamp) = new_timestamp {
+            dataset.timestamp = Some(timestamp);
         }
     } else if add_new_dataset {
         // If the dataset does not exist and the user wants to add a new one
         let new_dataset = Dataset {
-            version: 1,
+            version: new_version.unwrap_or(1),
             format: new_format.unwrap_or("default_format").to_string(),
-            timestamp: Utc::now(),
-            categories: new_category
-                .map(|cat| vec![cat.to_string()])
-                .unwrap_or_default(),
+            timestamp: new_timestamp,
+            categories: new_category.unwrap_or_default(),
             filepath: new_dataset_file_path.unwrap_or_else(|| PathBuf::from("default/path")),
         };
         config
@@ -112,15 +116,15 @@ pub fn update_dataset_info(
     Ok(())
 }
 
-pub fn read_dataset_info(path: Option<PathBuf>) -> Result<Table, Box<dyn Error>> {
+pub fn read_dataset_info(path: Option<PathBuf>) -> Result<Config, Box<dyn Error>> {
     // Clean up the file path
     let path = path.unwrap_or_else(|| PathBuf::from("dataset_info.toml"));
     let file_path = path.join("dataset_info.toml");
     // Read the file into a string
     let content = std::fs::read_to_string(file_path.clone())?;
-    println!("file read successful");
+    // println!("file read successful");
     // Convert the contents of the file into a Table
-    let config: Table = content.parse()?;
+    let config: Config = toml::from_str(&content)?;
     Ok(config)
 }
 
@@ -173,210 +177,6 @@ pub fn get_dataset_file_paths(
     Ok(file_paths)
 }
 
-pub fn list_installed_datasets() -> Result<(), Box<dyn Error>> {
-    let base_dir = get_base_directory().ok_or("Unable to get the user's local data directory")?;
-
-    let table = match read_dataset_info(Some(base_dir)) {
-        Ok(table) => table,
-        Err(_) => {
-            println!("No datasets installed. Use --download to get started.");
-            return Ok(());
-        }
-    };
-
-    let datasets = match table.get("datasets") {
-        Some(toml::Value::Table(datasets)) => datasets,
-        _ => {
-            println!("No datasets installed. Use --download to get started.");
-            return Ok(());
-        }
-    };
-
-    if datasets.is_empty() {
-        println!("No datasets installed. Use --download to get started");
-        return Ok(());
-    }
-
-    // Print header
-    println!(
-        "{:<20} {:<10} {:<10} {:<20} {:<30} {:<50}",
-        "NAME", "VERSION", "FORMAT", "TIMESTAMP", "CATEGORIES", "FILEPATH"
-    );
-    println!("{}", "-".repeat(140));
-
-    // Sort names
-    let mut names: Vec<&String> = datasets.keys().collect();
-    names.sort();
-
-    // Print each dataset
-    for name in names {
-        if let Some(toml::Value::Table(dataset_table)) = datasets.get(name) {
-            let version = dataset_table
-                .get("version")
-                .and_then(|v| v.as_integer())
-                .unwrap_or(0);
-
-            let format = dataset_table
-                .get("format")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown");
-
-            let timestamp = dataset_table
-                .get("timestamp")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown");
-
-            let categories = dataset_table
-                .get("categories")
-                .and_then(|v| v.as_array())
-                .map(|arr| {
-                    arr.iter()
-                        .filter_map(|v| v.as_str())
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                })
-                .unwrap_or_else(|| String::from("none"));
-
-            let filepath = dataset_table
-                .get("filepath")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown");
-
-            println!(
-                    "{name:<20} {version:<10} {format:<10} {timestamp:<20} {categories:<30} {filepath:<50}"
-                );
-        }
-    }
-
-    println!("\n{} dataset(s) installed", datasets.len());
-
-    Ok(())
-}
-
-pub fn list_available_datasets(filter: Option<&str>) -> Result<(), Box<dyn Error>> {
-    println!("Fetching available datasets from remote catalog...");
-
-    let response = reqwest::blocking::get(DATASET_LIST_URL)
-        .map_err(|e| format!("Failed to fetch dataset catalog: {e}"))?;
-
-    if !response.status().is_success() {
-        return Err(format!(
-            "Failed to fetch dataset catalog: HTTP {}",
-            response.status()
-        )
-        .into());
-    }
-
-    let content = response
-        .text()
-        .map_err(|e| format!("Failed to read response: {e}"))?;
-
-    let remote_table: Table = content
-        .parse()
-        .map_err(|e| format!("Failed to parse remote catalog: {e}"))?;
-
-    let remote_datasets = match remote_table.get("datasets") {
-        Some(toml::Value::Table(datasets)) => datasets,
-        _ => {
-            println!("No datasets available in remote catalog.");
-            return Ok(());
-        }
-    };
-
-    if remote_datasets.is_empty() {
-        println!("No datasets available in remote catalog.");
-        return Ok(());
-    }
-
-    let mut names: Vec<&String> = remote_datasets
-        .keys()
-        .filter(|name| {
-            if let Some(f) = filter {
-                name.to_lowercase().contains(&f.to_lowercase())
-            } else {
-                true
-            }
-        })
-        .collect();
-    names.sort();
-
-    if names.is_empty() {
-        println!("No datasets found matching filter: '{}'", filter.unwrap());
-        return Ok(());
-    }
-
-    if let Some(f) = filter {
-        println!("Available datasets (filtered by '{}'):\n", f);
-    } else {
-        println!("Available datasets:\n");
-    }
-
-    println!("{}", "=".repeat(80));
-
-    for (index, &name) in names.iter().enumerate() {
-        if let Some(toml::Value::Table(dataset_table)) = remote_datasets.get(name) {
-            println!("Dataset: {name}");
-
-            if let Some(toml::Value::String(v)) = dataset_table.get("version") {
-                println!("Version: {v}");
-            }
-
-            if let Some(toml::Value::String(f)) = dataset_table.get("format") {
-                println!("Format: {f}");
-            }
-
-            if let Some(toml::Value::String(t)) = dataset_table.get("timestamp") {
-                println!("Timestamp: {t}");
-            }
-
-            if let Some(toml::Value::String(fp)) = dataset_table.get("filepath") {
-                println!("Filepath: {fp}");
-            }
-
-            if let Some(toml::Value::Array(cats)) = dataset_table.get("categories") {
-                let cat_strs: Vec<&str> = cats
-                    .iter()
-                    .filter_map(|v| {
-                        if let toml::Value::String(s) = v {
-                            Some(s.as_str())
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
-                let categories = cat_strs.join(", ");
-                println!("Categories: {categories}");
-            }
-
-            if let Some(toml::Value::Array(urls)) = dataset_table.get("urls") {
-                println!("URLs:");
-                for url in urls {
-                    if let toml::Value::String(u) = url {
-                        println!("  - {u}");
-                    }
-                }
-            }
-
-            if index < names.len() - 1 {
-                println!("{}", "-".repeat(80));
-            }
-        }
-    }
-
-    println!("{}", "=".repeat(80));
-
-    if let Some(f) = filter {
-        let total = remote_datasets.len();
-        let filtered = names.len();
-        println!("\n{filtered} dataset(s) found matching '{f}' (out of {total} total)");
-    } else {
-        let count = names.len();
-        println!("\n{count} dataset(s) available");
-    }
-
-    Ok(())
-}
-
 // Unit tests
 #[cfg(test)]
 mod tests {
@@ -420,9 +220,11 @@ mod tests {
             Some(output_path.clone()),
             "test_dataset",
             Some("json"),
-            Some("test_category"),
+            Some(vec!["test_category".to_string()]),
             Some(PathBuf::from("test/path")),
             true,
+            None,
+            None,
         );
         assert!(result.is_ok(), "Updating dataset_info should succeed");
 
@@ -459,9 +261,11 @@ mod tests {
             Some(output_path.clone()),
             "test_dataset",
             Some("json"),
-            Some("test_category"),
+            Some(vec!["test_category".to_string()]),
             Some(PathBuf::from("test/path")),
             true,
+            None,
+            None,
         )
         .unwrap();
 
@@ -470,9 +274,11 @@ mod tests {
             Some(output_path.clone()),
             "test_dataset",
             Some("sqlite"),
-            Some("new_category"),
+            Some(vec!["new_category".to_string()]),
             None,
             false,
+            None,
+            None,
         );
         assert!(result.is_ok(), "Updating existing dataset should succeed");
 
@@ -502,11 +308,7 @@ mod tests {
         assert!(result.is_ok(), "Reading dataset_info should succeed");
 
         let config = result.unwrap();
-        assert_eq!(
-            config["schema_version"].as_integer().unwrap(),
-            1,
-            "Schema version should be 1"
-        );
+        assert_eq!(config.schema_version, 1, "Schema version should be 1");
     }
 
     #[test]
@@ -520,18 +322,22 @@ mod tests {
             Some(output_path.clone()),
             "dataset1",
             Some("json"),
-            Some("category1"),
+            Some(vec!["category1".to_string()]),
             Some(PathBuf::from("path1")),
             true,
+            None,
+            None,
         )
         .unwrap();
         update_dataset_info(
             Some(output_path.clone()),
             "dataset2",
             Some("json"),
-            Some("category2"),
+            Some(vec!["category2".to_string()]),
             Some(PathBuf::from("path2")),
             true,
+            None,
+            None,
         )
         .unwrap();
 
@@ -561,15 +367,19 @@ mod tests {
             Some("category1"),
             Some(PathBuf::from("path1")),
             true,
+            None,
+            None,
         )
         .unwrap();
         update_dataset_info(
             Some(output_path.clone()),
             "dataset2",
             Some("json"),
-            Some("category2"),
+            Some(vec!["category2".to_string()]),
             Some(PathBuf::from("path2")),
             true,
+            None,
+            None,
         )
         .unwrap();
 
