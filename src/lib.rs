@@ -45,7 +45,7 @@ pub fn run(
                 std::process::exit(1);
             }
         } else if let Err(e) = install_dataset(&dataset_name, true) {
-            eprintln!("Error installing dataset '{}': {e}", dataset_name);
+            eprintln!("Error installing dataset '{dataset_name}': {e}");
             std::process::exit(1);
         }
         return;
@@ -54,7 +54,7 @@ pub fn run(
     // Handle uninstall command
     if let Some(dataset_name) = uninstall {
         if let Err(e) = uninstall_dataset(&dataset_name) {
-            eprintln!("Error uninstalling dataset '{}': {e}", dataset_name);
+            eprintln!("Error uninstalling dataset '{dataset_name}': {e}");
             std::process::exit(1);
         }
         return;
@@ -69,10 +69,10 @@ pub fn run(
             }
         } else {
             match update_dataset(&dataset_name, false, None, None) {
-                Ok(true) => println!("Dataset '{}' was updated successfully", dataset_name),
+                Ok(true) => println!("Dataset '{dataset_name}' was updated successfully"),
                 Ok(false) => {}
                 Err(e) => {
-                    eprintln!("Error updating dataset '{}': {e}", dataset_name);
+                    eprintln!("Error updating dataset '{dataset_name}': {e}");
                     std::process::exit(1);
                 }
             }
