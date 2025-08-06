@@ -1,4 +1,4 @@
-use crate::dataset_info::{read_dataset_info, update_dataset_info, Config};
+use crate::dataset_info::{read_dataset_info, update_dataset_info, Config, Dataset};
 use crate::dataset_list::{read_dataset_list, RemoteCatalog};
 use crate::directory_info::get_base_directory;
 use std::error::Error;
@@ -142,16 +142,20 @@ pub fn install_dataset(dataset_name: &str, prompt: bool) -> Result<(), Box<dyn E
 
     fs::remove_file(&temp_zip_path).ok();
 
+    let new_dataset = Dataset {
+        version,
+        format: format.to_string(),
+        timestamp: dataset.timestamp,
+        categories: categories.clone(),
+        filepath: PathBuf::from(format!("{dataset_name}.db")),
+    };
+
     // update dataset_info.toml
     update_dataset_info(
         Some(base_dir.clone()),
         dataset_name,
-        Some(format),
-        Some(categories.clone()),
-        Some(PathBuf::from(format!("{dataset_name}.db"))),
+        Some(new_dataset),
         true,
-        Some(version),
-        dataset.timestamp,
     )?;
 
     println!("Successfully installed dataset: {dataset_name}");
@@ -295,9 +299,7 @@ pub fn update_dataset(
         .map(|t| t.format("%Y-%m-%d").to_string())
         .unwrap_or_else(|| "unknown".to_string());
 
-    println!(
-        "Update available for '{dataset_name}' (local: {local_date}, remote: {remote_date})"
-    );
+    println!("Update available for '{dataset_name}' (local: {local_date}, remote: {remote_date})");
 
     // Perform update using install_dataset. No prompt
     install_dataset(dataset_name, prompt)?;
