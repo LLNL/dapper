@@ -90,14 +90,14 @@ jobs:
 
     - name: Download and Extract dataset
       run: |
-        # Initilating XDG directory
+        # Initializing XDG directory
         mkdir -p $HOME/.local/share/dapper
 
         # Download Linux package database
-        curl -L -o /tmp/debian-buster-v1.db.zip "https://huggingface.co/datasets/dapper-datasets/debian-buster/resolve/v1/debian-buster-v1.db.zip"
-        unzip /tmp/debian-buster-v1.db.zip -d /tmp/ 
-        mv /tmp/debian-buster-v1.db $HOME/.local/share/dapper/LinuxPackageDB.db
-        rm /tmp/debian-buster-v1.db.zip
+        curl -L -o /tmp/debian-buster-v2.db.zip "https://huggingface.co/datasets/dapper-datasets/debian-buster/resolve/v2/debian-buster-v2.db.zip"
+        unzip /tmp/debian-buster-v2.db.zip -d /tmp/ 
+        mv /tmp/debian-buster-v2.db $HOME/.local/share/dapper/LinuxPackageDB.db
+        rm /tmp/debian-buster-v2.db.zip
 
         # Download PyPI package database
         curl -L -o /tmp/pypi-v1.db.zip "https://huggingface.co/datasets/dapper-datasets/pypi/resolve/v1/pypi-v1.db.zip"
