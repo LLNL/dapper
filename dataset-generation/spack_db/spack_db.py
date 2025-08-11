@@ -279,6 +279,25 @@ def make_binary_package_URL(package_zip_hash):
 
     return myURL
 
+############ updated 8/10 ############
+# ensure tarinfo completeness
+def write_tarinfo_safely(tarinfo_path, file_list):
+    temp_dir = os.path.dirname(tarinfo_path)
+    with tempfile.NamedTemporaryFile("w", dir=temp_dir, delete=False) as tmp:
+        json.dump(file_list, tmp, indent=2)
+        temp_name = tmp.name
+    shutil.move(temp_name, tarinfo_path)
+
+
+# ensure manifest completeness
+def write_manifest_safely(manifest_path, manifest_data):
+    temp_dir = os.path.dirname(manifest_path)
+    with tempfile.NamedTemporaryFile("w", dir=temp_dir, delete=False) as tmp:
+        json.dump(manifest_data, tmp, indent=2)
+        temp_name = tmp.name
+    shutil.move(temp_name, manifest_path)
+#####################################
+
 # using python tarfile module io module to list all the files in the downloaded tarball 
 # myfile is the tar_file response.content and the package is the hash we will split by
 # package is the package name and the version
@@ -320,10 +339,14 @@ def read_binary_package(myfile, package, package_zip_hash):
     name = package.split('/')[0]
     version = package.split('/')[1].split('-')[1]
     
+    ############ updated 8/10 ############
     # saves file names to the tarinfo file
+    ##tarinfo_path = os.path.join(TARINFO_DIR, f"{package_zip_hash}.json")
+    ##with open(tarinfo_path, "w") as f:
+        ##json.dump(file_list, f, indent=2)
     tarinfo_path = os.path.join(TARINFO_DIR, f"{package_zip_hash}.json")
-    with open(tarinfo_path, "w") as f:
-        json.dump(file_list, f, indent=2)
+    write_tarinfo_safely(tarinfo_path, file_list)
+    #####################################
 
     # removes tarball once processed
     tarball_path = os.path.join(BINARY_CACHE_DIR, package.replace('/','__'))
@@ -388,8 +411,6 @@ def print_files(package_hash, package_value, index, existing_tarinfo_files, seen
     else:
         # download if manifest does not exist
 
-
-    
         # returns the URL for the spec manifest file and the package_filename
         theURL, package_filename = make_spec_manifest_URL(package_hash, package_value)
 
@@ -414,9 +435,10 @@ def print_files(package_hash, package_value, index, existing_tarinfo_files, seen
         clean_spec_manifest = remove_lines_spec_manifest(temp)
 
         # writes cleaned manifest information to manifest file
-        with open(manifest_path, "w") as f:
-            json.dump(clean_spec_manifest, f, indent=2)
-        print("✅ Cleaned and parsed spec manifest")
+        ##with open(manifest_path, "w") as f:
+            ##json.dump(clean_spec_manifest, f, indent=2)
+        write_manifest_safely(manifest_path, clean_spec_manifest)
+        print("✅ Manifest safely written: {manifest_path}")
 
     
 
