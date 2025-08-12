@@ -80,7 +80,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Download dapper dataset
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v5
       with:
         name: dapper-binary-${{ runner.os }}
         path: target/debug/
