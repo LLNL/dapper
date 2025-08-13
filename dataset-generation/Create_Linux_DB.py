@@ -1,3 +1,14 @@
+# /// script
+# dependencies = [
+#   "requests",
+#   "python-debian",
+#   "tqdm",
+#   "typing-extensions",
+#
+#   "dapper-python",
+# ]
+# ///
+
 """
 This script processes the "Linux Contents" file and parses which files are added by which packages
 An example of this file can be found here: http://security.ubuntu.com/ubuntu/dists/focal/Contents-amd64.gz

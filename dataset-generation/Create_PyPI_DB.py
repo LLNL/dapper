@@ -1,3 +1,18 @@
+# /// script
+# dependencies = [
+#   "requests",
+#   "tqdm",
+#   "more-itertools",
+#   "methodtools",
+#   "natsort",
+#   "typing-extensions",
+#
+#   "python-magic-bin",
+#
+#   "dapper-python",
+# ]
+# ///
+
 """
 This script processes all packages listed on PyPI's index to creates a database of what package(s) correspond to each import name
 The index of all listed packages can be found here: https://pypi.python.org/simple/
