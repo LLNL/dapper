@@ -1,3 +1,14 @@
+# /// script
+# dependencies = [
+#   "requests",
+#   "python-debian",
+#   "tqdm",
+#   "typing-extensions",
+#
+#   "dapper-python",
+# ]
+# ///
+
 """
 This script processes the "Linux Contents" file and parses which files are added by which packages
 An example of this file can be found here: http://security.ubuntu.com/ubuntu/dists/focal/Contents-amd64.gz
@@ -34,6 +45,7 @@ from datetime import datetime
 from io import BytesIO, FileIO, TextIOWrapper
 from urllib.parse import urlparse
 from tqdm.auto import tqdm
+from debian.deb822 import Deb822
 
 from typing_extensions import Self
 
@@ -72,6 +84,25 @@ class PackageDetails:
             file_path=PurePosixPath(file_path)
         )
 
+@dataclass
+class SourceDetails:
+    package: str
+    bin_packages: list[str]
+
+    #There could be further information extracted from the Sources file
+    #But this is all we currently need
+
+    @classmethod
+    def from_sources_file(cls, entry:Deb822) -> Self:
+        return cls(
+            package=entry.get('Package'),
+            bin_packages=[
+                x.strip()
+                for x in entry.get('Binary').split(',')
+            ],
+        )
+
+
 
 class LinuxDatabase(Database):
 
@@ -84,19 +115,19 @@ class LinuxDatabase(Database):
             #Would there be any benefit to having a separate package table
             #Which the files table references as a foreign key vs directly saving the package into the files table?
             create_table_cmd = """
-            CREATE TABLE
-            IF NOT EXISTS package_files(
-                id INTEGER PRIMARY KEY,
-                file_name TEXT,
-                normalized_file_name TEXT,
-                file_path TEXT,
-                package_name TEXT,
-                full_package_name TEXT
-            )
+                CREATE TABLE
+                IF NOT EXISTS package_files(
+                    id INTEGER PRIMARY KEY,
+                    file_name TEXT,
+                    normalized_file_name TEXT,
+                    file_path TEXT,
+                    package_name TEXT,
+                    full_package_name TEXT
+                )
             """
             cursor.execute(create_table_cmd)
 
-            #Index the filename colum for fast lookups
+            #Index the filename column for fast lookups
             #Currently does not index package name as use case does not require fast lookups on package name and reduces filesize
             index_cmd = """
                 CREATE INDEX idx_file_name
@@ -108,6 +139,38 @@ class LinuxDatabase(Database):
                 ON package_files(normalized_file_name);
             """
             cursor.execute(index_cmd)
+
+
+            create_table_cmd = """
+                CREATE TABLE
+                IF NOT EXISTS package_sources(
+                    id INTEGER PRIMARY KEY,
+                    package_name TEXT,
+                    bin_package TEXT
+                )
+            """
+            cursor.execute(create_table_cmd)
+
+            #Index the binary package column (packages built from this one) for fast lookups
+            index_cmd = """
+                CREATE INDEX idx_bin_packages
+                ON package_sources(bin_package);
+            """
+            cursor.execute(index_cmd)
+
+
+            #Create combined view for easier querying
+            create_view_cmd = """
+                CREATE VIEW
+                IF NOT EXISTS v_package_files
+                AS
+                    SELECT file_name, normalized_file_name, file_path, package_files.package_name AS package_name, full_package_name, package_sources.package_name AS source_package_name
+                    FROM package_files
+                    LEFT OUTER JOIN package_sources
+                    ON package_files.package_name = package_sources.bin_package
+            """
+            cursor.execute(create_view_cmd)
+
 
             #Metadata information about dataset
             create_table_cmd = """
@@ -156,8 +219,20 @@ class LinuxDatabase(Database):
              package_details.package_name, package_details.full_package_name,)
         )
 
+    def add_source(self, source_details:SourceDetails) -> None:
+        cursor = self.cursor()
+        insert_cmd = """
+            INSERT INTO package_sources(package_name, bin_package)
+            VALUES (?, ?)
+        """
+        data = (
+            (source_details.package, bin_package)
+            for bin_package in source_details.bin_packages
+        )
+        cursor.executemany(insert_cmd, data)
 
-def read_package_data(uri: str | Path, *, encoding='utf-8') -> TextIOWrapper:
+
+def read_data(uri: str | Path, *, encoding='utf-8') -> TextIOWrapper:
     """Reads a file either from disk or by downloading it from the provided URL
     Will attempt to read the provided file as a text file
 
@@ -184,7 +259,7 @@ def read_package_data(uri: str | Path, *, encoding='utf-8') -> TextIOWrapper:
             content = BytesIO()
             progress_bar = tqdm(
                 total=file_size,
-                desc='Downloading package file', colour='blue',
+                desc='Downloading file', colour='blue',
                 unit='B', unit_divisor=1024, unit_scale=True,
                 position=None, leave=None,
             )
@@ -215,10 +290,16 @@ def main():
     )
     #Allow to be either a path or a URL
     parser.add_argument(
-        '-i','--input',
+        '-c','--contents',
         required=True,
         type=lambda x: str(x) if urlparse(x).scheme and urlparse(x).netloc else Path(x),
-        help='Path or URL to input file',
+        help='Path or URL to linux contents file',
+    )
+    parser.add_argument(
+        '-s','--sources',
+        required=True,
+        type=lambda x: str(x) if urlparse(x).scheme and urlparse(x).netloc else Path(x),
+        help='Path or URL to linux sources file',
     )
     parser.add_argument(
         '-o','--output',
@@ -239,20 +320,36 @@ def main():
     if args.output.exists():
         raise FileExistsError(f"File {args.output} already exists")
 
-    file = read_package_data(args.input)
-    line_count = sum(1 for _ in file)
-    file.seek(0)
-
     with LinuxDatabase(args.output) as db:
+        #Process entries in linux contents file
+        file = read_data(args.contents)
+        entry_count = sum(1 for _ in file)
+        file.seek(0)
+
         progress_iter = tqdm(
             file,
-            total=line_count,
-            desc='Processing Data', colour='green',
+            total=entry_count,
+            desc='Processing Contents', colour='green',
             unit='Entry',
         )
-        for line in progress_iter:
-            package = PackageDetails.from_linux_package_file(line)
+        for entry in progress_iter:
+            package = PackageDetails.from_linux_package_file(entry)
             db.add_package(package)
+
+        #Process entries in linux sources file
+        file = read_data(args.sources)
+        entry_count = sum(1 for _ in Deb822.iter_paragraphs(file))
+        file.seek(0)
+
+        progress_iter = tqdm(
+            Deb822.iter_paragraphs(file),
+            total=entry_count,
+            desc='Processing Sources', colour='cyan',
+            unit='Entry',
+        )
+        for entry in progress_iter:
+            package = SourceDetails.from_sources_file(entry)
+            db.add_source(package)
 
         db.set_version(args.version)
 
