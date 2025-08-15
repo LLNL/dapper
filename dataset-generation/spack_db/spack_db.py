@@ -25,6 +25,7 @@ import shutil
 
 # spack.index.db.json maps each package back to the packagename, version, SHA256hash, 
     # path to manifest json file, path to tarinfo file list
+<<<<<<< HEAD
 INDEX_FILE = "cache/spack.index.db.json"  
 
 # MANIFEST_DIR is the source of metadata per package used in master index
@@ -33,10 +34,21 @@ MANIFEST_DIR = "cache/manifest"
 # TARINFO_DIR contains the extracted list of files from each binary tarball
 # this will be used in making the SQLite database without having to reprocess the tarballs again
 TARINFO_DIR = "cache/tarinfo" 
+=======
+INDEX_FILE = "cache/DEMO_spack.index.db.json"  
+
+# MANIFEST_DIR is the source of metadata per package used in master index
+MANIFEST_DIR = "cache/DEMO_manifest" 
+
+# TARINFO_DIR contains the extracted list of files from each binary tarball
+# this will be used in making the SQLite database without having to reprocess the tarballs again
+TARINFO_DIR = "cache/DEMO_tarinfo" 
+>>>>>>> origin/spack_scraping_LQ
 
 # SPEC_CACHE_DIR is meant to be a temporary cache of raw spec manifest files downloaded from the internet
 # a clean copy is meant to be placed in MANIFEST_DIR
 # SPEC_CACHE_DIR avoids redownloading if the script is restarted.
+<<<<<<< HEAD
 SPEC_CACHE_DIR = "cache/spec_manifests" 
 
 # BINARY_CACHE_DIR contains the downloaded tarballs temporarily
@@ -53,6 +65,24 @@ SKIPPED_MANIFESTS_FILE = "cache/skipped_manifests.txt"
 MISSING_TARBALL_HASH_FILE = "cache/missing_tarballs.txt"
 SHARED_TARBALL_HASH_FILE = "cache/shared_tarballs.txt"
 FAILED_TARBALL_DOWNLOAD_FILE = "cache/failed_tarball_downloads.txt"
+=======
+SPEC_CACHE_DIR = "cache/DEMO_spec_manifests" 
+
+# BINARY_CACHE_DIR contains the downloaded tarballs temporarily
+# the file is deleted after processing. 
+BINARY_CACHE_DIR = "cache/DEMO_binary_packages" 
+TIMEOUT_LOG_FILE = "cache/DEMO_timeouts.txt"
+
+# checkpoint to safely stop the script at any time
+# progress.txt saves the spec_manifest hash
+CHECKPOINT_FILE = "DEMO_progress.txt" 
+
+# file to track all the manifest files that were unable to download
+SKIPPED_MANIFESTS_FILE = "cache/DEMO_skipped_manifests.txt"
+MISSING_TARBALL_HASH_FILE = "cache/DEMO_missing_tarballs.txt"
+SHARED_TARBALL_HASH_FILE = "cache/DEMO_shared_tarballs.txt"
+FAILED_TARBALL_DOWNLOAD_FILE = "cache/DEMO_failed_tarball_downloads.txt"
+>>>>>>> origin/spack_scraping_LQ
 
 # create cache directories for faster download
 # FIX ME: Remove SPEC_CACHE_DIR
@@ -187,7 +217,11 @@ def download_from_URL(theURL, package, is_spec=True):
 
     # full file path then is:
         # "cache/spec_manifests/compiler-wrapper/compiler-wrapper-1.0-bsavlbvtqsc7yjtvka3ko3aem4wye2u3"
+<<<<<<< HEAD
         #cache/manifest\\compiler-wrapper-1.0-bsavlbvtqsc7yjtvka3ko3aem4wye2u3.json
+=======
+        #cache/DEMO_manifest\\compiler-wrapper-1.0-bsavlbvtqsc7yjtvka3ko3aem4wye2u3.json
+>>>>>>> origin/spack_scraping_LQ
     cached_path = os.path.join(cache_dir, package_name)
     print(f"this is the cached_path {cached_path}")
 
@@ -438,7 +472,11 @@ def print_files(package_hash, package_value, index, existing_tarinfo_files, seen
         ##with open(manifest_path, "w") as f:
             ##json.dump(clean_spec_manifest, f, indent=2)
         write_manifest_safely(manifest_path, clean_spec_manifest)
+<<<<<<< HEAD
         print(f"✅ Manifest safely written: {manifest_path}")
+=======
+        print("✅ Manifest safely written: {manifest_path}")
+>>>>>>> origin/spack_scraping_LQ
 
     
 
@@ -520,7 +558,11 @@ def run_program(package_hash, database, index, existing_tarinfo_files, seen_tarb
 
 
 def main():
+<<<<<<< HEAD
     #file_name = "myMedjson.json"
+=======
+    #file_name = "myMedjson_DEMO.json"
+>>>>>>> origin/spack_scraping_LQ
     # file_name = "myjson.json"
     # file_name = 'Med_w_compilerwrapper_packages_at_end.json'
     file_name = "e2a6969c742c8ee33deba2d210ce2243cd3941c6553a3ffc53780ac6463537a9"
@@ -598,7 +640,11 @@ def main():
                 tarinfo_exists = tarinfo_path and os.path.exists(tarinfo_path)
 
                 if manifest_exists and tarinfo_exists:
+<<<<<<< HEAD
                     #print(f"Skipping fully processed package: {package_hash}")
+=======
+                    print(f"Skipping fully processed package: {package_hash}")
+>>>>>>> origin/spack_scraping_LQ
                     continue
                 
                 # if tarball previously failed, skip retrying it
