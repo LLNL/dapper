@@ -21,6 +21,8 @@ import os
 import tempfile
 import shutil
 
+from pathlib import Path
+
 # Configuration
 
 # spack.index.db.json maps each package back to the packagename, version, SHA256hash, 
@@ -50,6 +52,9 @@ CHECKPOINT_FILE = "progress.txt"
 
 # file to track all the manifest files that were unable to download
 SKIPPED_MANIFESTS_FILE = "cache/skipped_manifests.txt"
+############ updated 8/15 ############
+MALFORMED_MANIFESTS_FILE = "cache/malformed_manifests.txt"
+######################################
 MISSING_TARBALL_HASH_FILE = "cache/missing_tarballs.txt"
 SHARED_TARBALL_HASH_FILE = "cache/shared_tarballs.txt"
 FAILED_TARBALL_DOWNLOAD_FILE = "cache/failed_tarball_downloads.txt"
@@ -60,6 +65,37 @@ os.makedirs(MANIFEST_DIR, exist_ok=True)
 os.makedirs(TARINFO_DIR, exist_ok = True)
 os.makedirs(SPEC_CACHE_DIR, exist_ok = True)
 os.makedirs(BINARY_CACHE_DIR, exist_ok = True)
+
+# purge truncated binaries in the binary_package directory on restart/resume
+# def purge_truncated_binaries():
+   
+#     if not os.path.isdir(BINARY_CACHE_DIR):
+#         return
+#     removed = 0
+#     for fname in os.listdir(BINARY_CACHE_DIR):
+#         fpath = os.path.join(BINARY_CACHE_DIR, fname)
+#         if not os.path.isfile(fpath):
+#             continue
+#         try:
+#             # Autodetect compression; iterate to EOF to ensure integrity
+#             with tarfile.open(fpath, mode="r:*") as tar:
+#                 for _ in tar:
+#                     pass
+#         except (tarfile.ReadError, EOFError, OSError) as e:
+#             print(f"🧹 Removing corrupt binary cache: {fpath} ({e})")
+#             try:
+#                 os.remove(fpath)
+#                 removed += 1
+#             except OSError as oe:
+#                 print(f"⚠️ Could not remove {fpath}: {oe}")
+#     if removed:
+#         print(f"✅ Purged {removed} corrupt/partial tarball(s).")
+
+############ updated 8/15 ############
+# Normalize any filesystem path to a forward-slash (POSIX) string for JSON storage.
+def _to_posix(p:str) -> str:
+    return Path(p).as_posix()
+######################################
 
 # look for index if it exists to add info to
 def load_index(): 
@@ -93,12 +129,25 @@ def update_index_entry(index, package_hash, package_value, package_zip_hash):
     manifest_filename = f"{name}-{version}-{package_hash}.json"
     tarinfo_filename = f"{package_zip_hash}.json"
 
+    ############ updated 8/15 ############
+    manifest_path_fs = os.path.join(MANIFEST_DIR, manifest_filename)
+    tarinfo_path_fs = os.path.join(TARINFO_DIR, tarinfo_filename)
+    ######################################
+
     index[package_hash] = {
         "name": name,
         "version": version,
         "sha256": package_zip_hash,
-        "manifest_path": os.path.join(MANIFEST_DIR, manifest_filename),
-        "tarinfo_path": os.path.join(TARINFO_DIR, tarinfo_filename)
+        ############ updated 8/15 ############
+        ##"manifest_path": os.path.join(MANIFEST_DIR, manifest_filename),
+        ##"tarinfo_path": os.path.join(TARINFO_DIR, tarinfo_filename)
+
+        # store forward-slash form in JSON for portability
+        "manifest_path": _to_posix(manifest_path_fs),
+        "tarinfo_path": _to_posix(tarinfo_path_fs),
+        
+        ######################################
+
     }
 
 
@@ -240,14 +289,27 @@ def download_from_URL(theURL, package, is_spec=True):
 
 # remove unnecessary lines in file
 def remove_lines_spec_manifest(myfile): 
-    
+    ############ updated 8/15 ############
     # removes unnecessary bytes
-    removed_ends = myfile[49:-834]
+    # removed_ends = myfile[49:-834]
 
-    # converts bytes to dictionary
-    database = json.loads(removed_ends)
+    # # converts bytes to dictionary
+    # database = json.loads(removed_ends)
    
-    return database
+    # return database
+
+    # Accept bytes or str; extract between first '{' and last '}'
+    data = myfile if isinstance(myfile, (bytes, bytearray)) else myfile.encode("utf-8")
+
+    start = data.find(b"{")
+    end = data.rfind(b"}")
+
+    if start == -1 or end == -1 or end < start:
+        raise ValueError("Malformed manifest: JSON braces not found")
+    
+    return json.loads(data[start:end+1].decode("utf-8"))
+    ######################################
+
 
 # returns checksum, sha256 hash used to download the binary tarball
 def access_spec_manifest_media_type(db): 
@@ -279,7 +341,6 @@ def make_binary_package_URL(package_zip_hash):
 
     return myURL
 
-############ updated 8/10 ############
 # ensure tarinfo completeness
 def write_tarinfo_safely(tarinfo_path, file_list):
     temp_dir = os.path.dirname(tarinfo_path)
@@ -296,7 +357,6 @@ def write_manifest_safely(manifest_path, manifest_data):
         json.dump(manifest_data, tmp, indent=2)
         temp_name = tmp.name
     shutil.move(temp_name, manifest_path)
-#####################################
 
 # using python tarfile module io module to list all the files in the downloaded tarball 
 # myfile is the tar_file response.content and the package is the hash we will split by
@@ -339,14 +399,9 @@ def read_binary_package(myfile, package, package_zip_hash):
     name = package.split('/')[0]
     version = package.split('/')[1].split('-')[1]
     
-    ############ updated 8/10 ############
     # saves file names to the tarinfo file
-    ##tarinfo_path = os.path.join(TARINFO_DIR, f"{package_zip_hash}.json")
-    ##with open(tarinfo_path, "w") as f:
-        ##json.dump(file_list, f, indent=2)
     tarinfo_path = os.path.join(TARINFO_DIR, f"{package_zip_hash}.json")
     write_tarinfo_safely(tarinfo_path, file_list)
-    #####################################
 
     # removes tarball once processed
     tarball_path = os.path.join(BINARY_CACHE_DIR, package.replace('/','__'))
@@ -394,7 +449,6 @@ def print_files(package_hash, package_value, index, existing_tarinfo_files, seen
     name = package_value['spec']['name']
     version = package_value['spec']['version']
     
-    ############ updated 8/10 ############
     manifest_filename = f"{name}-{version}-{package_hash}.json"
     manifest_path = os.path.join(MANIFEST_DIR, manifest_filename)
 
@@ -431,23 +485,26 @@ def print_files(package_hash, package_value, index, existing_tarinfo_files, seen
 
         print("✅ Loaded cached spec manifest")
 
-        # remove unneccessary lines from downloaded spec manifest
-        clean_spec_manifest = remove_lines_spec_manifest(temp)
+        
+        ############ updated 8/15 ############
+    
+        try:
+            # remove unneccessary lines from downloaded spec manifest
+            clean_spec_manifest = remove_lines_spec_manifest(temp)
+        except Exception as e:
+            print(f"Failed to parse manifest {package_filename}: {e}")
+            with open(MALFORMED_MANIFESTS_FILE, "a") as f:
+                f.write(f"{package_hash}\t{theURL}\t{type(e).__name__}: {e}\n")
+            # also adding it to file for skipping processing at restart
+            with open(SKIPPED_MANIFESTS_FILE, "a") as f:
+                f.write(f"{package_hash}\n")
+            return
+        
+        ######################################
 
         # writes cleaned manifest information to manifest file
-        ##with open(manifest_path, "w") as f:
-            ##json.dump(clean_spec_manifest, f, indent=2)
         write_manifest_safely(manifest_path, clean_spec_manifest)
         print(f"✅ Manifest safely written: {manifest_path}")
-
-    
-
-    # writes cleaned manifest information to manifest file
-    ##manifest_file = os.path.join(MANIFEST_DIR, f"{name}-{version}-{package_hash}.json")
-    ##with open(manifest_file, "w") as f:
-        ##json.dump(clean_spec_manifest, f, indent=2)
-
-    ######################################
 
     # find the mediaType that contains the hash for the package tarball install
     package_zip_hash = access_spec_manifest_media_type(clean_spec_manifest)
@@ -520,6 +577,9 @@ def run_program(package_hash, database, index, existing_tarinfo_files, seen_tarb
 
 
 def main():
+
+    # remove any corrupt tarballs if they exist before resuming program
+    ##purge_truncated_binaries()
     #file_name = "myMedjson.json"
     # file_name = "myjson.json"
     # file_name = 'Med_w_compilerwrapper_packages_at_end.json'
@@ -593,10 +653,13 @@ def main():
                 manifest_path = entry.get("manifest_path", "")
                 tarinfo_path = entry.get("tarinfo_path", "")
                 tarball_hash = entry.get("sha256", "")
-
-                manifest_exists = manifest_path and os.path.exists(manifest_path)
-                tarinfo_exists = tarinfo_path and os.path.exists(tarinfo_path)
-
+                
+                ############ updated 8/15 ############
+                ##manifest_exists = manifest_path and os.path.exists(manifest_path)
+                ##tarinfo_exists = tarinfo_path and os.path.exists(tarinfo_path)
+                manifest_exists = bool(manifest_path) and Path(manifest_path).exists()
+                tarinfo_exists = bool(tarinfo_path) and Path(tarinfo_path).exists()
+                ######################################
                 if manifest_exists and tarinfo_exists:
                     #print(f"Skipping fully processed package: {package_hash}")
                     continue
