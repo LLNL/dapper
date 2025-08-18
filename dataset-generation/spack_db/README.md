@@ -12,26 +12,26 @@ The program builds a master index called spack.index.db.json. The layout of the 
 The program allows for restart/resume in case there are program run interruptions. Skipped or malformed manifests are recorded and if the information exists for both manifest and tarball, re-downloading files is avoided. 
 
 ## Directory Structure
-    * `cache/spack.index.db.json` - master index
-    * `cache/manifest/` - cleaned spec manifests
-    * `cache/tarinfo/` - JSON file lists extracted from tarballs
-    * `cache/spec_manifests/` - temporary cache of raw manifests before clean up
-    * 'cache/binary_packages/` - temporary cache of downloaded tarballs
-    * `cache/timeouts.txt` - packages that timed out while downloading
-    * `cache/skipped_manifests.txt` - a list of manifests that could not be downloaded
-    * `cache/malformed_manifests.txt` - manifests that failed parsing
-    * `cache/missing_tarballs.txt` - manifests without a tarball hash
-    * `cache/shared_tarballs.txt` - records multiple manifests that point to the same tarball
-    * `cache/failed_tarball_downloads.txt` - tarballs that failed to download
+* `cache/spack.index.db.json` - master index
+* `cache/manifest/` - cleaned spec manifests
+* `cache/tarinfo/` - JSON file lists extracted from tarballs
+* `cache/spec_manifests/` - temporary cache of raw manifests before clean up
+* `cache/binary_packages/` - temporary cache of downloaded tarballs
+* `cache/timeouts.txt` - packages that timed out while downloading
+* `cache/skipped_manifests.txt` - a list of manifests that could not be downloaded
+* `cache/malformed_manifests.txt` - manifests that failed parsing
+* `cache/missing_tarballs.txt` - manifests without a tarball hash
+* `cache/shared_tarballs.txt` - records multiple manifests that point to the same tarball
+* `cache/failed_tarball_downloads.txt` - tarballs that failed to download
 
 ## Features
-    * Retrieves package `.spec.manifest.json` from Spack's binary mirror
-    * Extracts valid JSON payload, and removes extra characters
-    * Retrieves binary tarballs and extracts file lists
-    * Creates and maintains a canonical JSON index that maps package to it's manifest and tarball information
-    * Contains multiple checkpoints for safe restart/resume of the program
-    * Records skipped/malformed manifests, missing hashes, failed tarbll downloads
-    * Stores forward-slash paths in JSON index for cross-platform use
+* Retrieves package `.spec.manifest.json` from Spack's binary mirror
+* Extracts valid JSON payload, and removes extra characters
+* Retrieves binary tarballs and extracts file lists
+* Creates and maintains a canonical JSON index that maps package to it's manifest and tarball information
+* Contains multiple checkpoints for safe restart/resume of the program
+* Records skipped/malformed manifests, missing hashes, failed tarbll downloads
+* Stores forward-slash paths in JSON index for cross-platform use
 
 ## Usage
 1. Install dependencies
