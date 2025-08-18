@@ -3,11 +3,11 @@
 This project aims to scrape the Spack build cache by downloading, cleaning, and indexing spec manifests and binary tarballs into a local cache, then converted into a Spack SQLite database. 
 
 The program builds a master index called spack.index.db.json. The layout of the index:
-    * spec manifest hash as the unique key
-    * package name and version
-    * package tarball unique SHA256 hash
-    * package manifest path to the local cache directory
-    * package tarinfo path to the local cache directory
+* spec manifest hash as the unique key
+* package name and version
+* package tarball unique SHA256 hash
+* package manifest path to the local cache directory
+* package tarinfo path to the local cache directory
 
 The program allows for restart/resume in case there are program run interruptions. Skipped or malformed manifests are recorded and if the information exists for both manifest and tarball, re-downloading files is avoided. 
 
