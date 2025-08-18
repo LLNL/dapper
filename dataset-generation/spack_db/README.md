@@ -1,13 +1,14 @@
 # Spack Build Cache Data Scraper
 
-This project aims to scrape the Spack build cache by downloading, cleaning, and indexing spec manifests and binary tarballs into a local cache, then converted into a Spack SQLite database. 
+This project aims to scrape the Spack build cache by downloading, cleaning, and indexing spec manifests and binary tarballs into a local cache, then convert the data into a Spack SQLite database. 
 
-The program builds a master index called spack.index.db.json. The layout of the index:
-* spec manifest hash as the unique key
-* package name and version
-* package tarball unique SHA256 hash
-* package manifest path to the local cache directory
-* package tarinfo path to the local cache directory
+The program builds a master index called `spack.index.db.json`. 
+* Index layout:
+    * spec manifest hash as the unique key
+    * package name and version
+    * package tarball unique SHA256 hash
+    * package manifest path to the local cache directory
+    * package tarinfo path to the local cache directory
 
 The program allows for restart/resume in case there are program run interruptions. Skipped or malformed manifests are recorded and if the information exists for both manifest and tarball, re-downloading files is avoided. 
 
@@ -35,27 +36,27 @@ The program allows for restart/resume in case there are program run interruption
 
 ## Usage
 1. Install dependencies
-```bash
-pip install requests
-```
-The rest of the necessary modules are part of Python's standard library.
+    ```bash
+    pip install requests
+    ```
+    The rest of the necessary modules are part of Python's standard library.
 
 2. Provide a database file
-Update the file_name in `main()` if needed
+    Update the file_name in `main()` if needed
 
 3. Run the script
-```bash
-python spack_db.py
-```
+    ```bash
+    python spack_db.py
+    ```
 
 4. Resume after interruption
-If an interruption occurs, it is safe to re-run the script without losing data already processed. 
+    If an interruption occurs, it is safe to re-run the script without losing data already processed. 
 
 5. Run Create_spack_DB.py to create SQLite database
-```bash
-python Create_spack_DB.py
-```
-Database will include all files extracted from the packages from the Spack build cache.
+    ```bash
+    python Create_spack_DB.py
+    ```
+    Database will include all files extracted from the packages from the Spack build cache.
 
 ## Contributing
 
