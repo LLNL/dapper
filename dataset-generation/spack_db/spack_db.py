@@ -36,11 +36,6 @@ MANIFEST_DIR = "cache/manifest"
 # this will be used in making the SQLite database without having to reprocess the tarballs again
 TARINFO_DIR = "cache/tarinfo" 
 
-# SPEC_CACHE_DIR is meant to be a temporary cache of raw spec manifest files downloaded from the internet
-# a clean copy is meant to be placed in MANIFEST_DIR
-# SPEC_CACHE_DIR avoids redownloading if the script is restarted.
-SPEC_CACHE_DIR = "cache/spec_manifests" 
-
 # BINARY_CACHE_DIR contains the downloaded tarballs temporarily
 # the file is deleted after processing. 
 BINARY_CACHE_DIR = "cache/binary_packages" 
@@ -52,50 +47,24 @@ CHECKPOINT_FILE = "progress.txt"
 
 # file to track all the manifest files that were unable to download
 SKIPPED_MANIFESTS_FILE = "cache/skipped_manifests.txt"
-############ updated 8/15 ############
 MALFORMED_MANIFESTS_FILE = "cache/malformed_manifests.txt"
-######################################
 MISSING_TARBALL_HASH_FILE = "cache/missing_tarballs.txt"
 SHARED_TARBALL_HASH_FILE = "cache/shared_tarballs.txt"
 FAILED_TARBALL_DOWNLOAD_FILE = "cache/failed_tarball_downloads.txt"
 
 # create cache directories for faster download
-# FIX ME: Remove SPEC_CACHE_DIR
 os.makedirs(MANIFEST_DIR, exist_ok=True)
 os.makedirs(TARINFO_DIR, exist_ok = True)
-os.makedirs(SPEC_CACHE_DIR, exist_ok = True)
 os.makedirs(BINARY_CACHE_DIR, exist_ok = True)
 
-# purge truncated binaries in the binary_package directory on restart/resume
-# def purge_truncated_binaries():
-   
-#     if not os.path.isdir(BINARY_CACHE_DIR):
-#         return
-#     removed = 0
-#     for fname in os.listdir(BINARY_CACHE_DIR):
-#         fpath = os.path.join(BINARY_CACHE_DIR, fname)
-#         if not os.path.isfile(fpath):
-#             continue
-#         try:
-#             # Autodetect compression; iterate to EOF to ensure integrity
-#             with tarfile.open(fpath, mode="r:*") as tar:
-#                 for _ in tar:
-#                     pass
-#         except (tarfile.ReadError, EOFError, OSError) as e:
-#             print(f"🧹 Removing corrupt binary cache: {fpath} ({e})")
-#             try:
-#                 os.remove(fpath)
-#                 removed += 1
-#             except OSError as oe:
-#                 print(f"⚠️ Could not remove {fpath}: {oe}")
-#     if removed:
-#         print(f"✅ Purged {removed} corrupt/partial tarball(s).")
-
-############ updated 8/15 ############
 # Normalize any filesystem path to a forward-slash (POSIX) string for JSON storage.
 def _to_posix(p:str) -> str:
     return Path(p).as_posix()
-######################################
+
+########### UPDATED 8/19 ###########
+def _to_posix(p: str) -> str:
+    return Path(p).as_posix()
+####################################
 
 # look for index if it exists to add info to
 def load_index(): 
@@ -129,27 +98,18 @@ def update_index_entry(index, package_hash, package_value, package_zip_hash):
     manifest_filename = f"{name}-{version}-{package_hash}.json"
     tarinfo_filename = f"{package_zip_hash}.json"
 
-    ############ updated 8/15 ############
     manifest_path_fs = os.path.join(MANIFEST_DIR, manifest_filename)
     tarinfo_path_fs = os.path.join(TARINFO_DIR, tarinfo_filename)
-    ######################################
 
     index[package_hash] = {
         "name": name,
         "version": version,
         "sha256": package_zip_hash,
-        ############ updated 8/15 ############
-        ##"manifest_path": os.path.join(MANIFEST_DIR, manifest_filename),
-        ##"tarinfo_path": os.path.join(TARINFO_DIR, tarinfo_filename)
 
         # store forward-slash form in JSON for portability
         "manifest_path": _to_posix(manifest_path_fs),
         "tarinfo_path": _to_posix(tarinfo_path_fs),
-        
-        ######################################
-
     }
-
 
 # load that last saved package hash
 def load_checkpoint(): #
@@ -223,49 +183,54 @@ def download_from_URL(theURL, package, is_spec=True):
     # Example: 
         # This -> "compiler-wrapper/compiler-wrapper-1.0-bsavlbvtqsc7yjtvka3ko3aem4wye2u3.spec.manifest.json"
         # is turned into this -> "compiler-wrapper__compiler-wrapper-1.0-bsavlbvtqsc7yjtvka3ko3aem4wye2u3.spec.manifest.json"
-    package_name = package.replace('/', '__')
+    package_name = package.replace('/','__')
 
     # if is_spec is true, meaning the file ends with ".spec.manifest.json",
         # then the file is not saved, but the reponse is returned to remove_lines_spec_manifest() for further manipulation
     # if the file ends with .tar.gz
         # then the file is saved in BINARY_CACHE_DIR
-    cache_dir = SPEC_CACHE_DIR if is_spec else BINARY_CACHE_DIR
-
-    print(f"location to be saved in {cache_dir} for {package_name}")
-    
+    cache_dir = BINARY_CACHE_DIR if not is_spec else None
 
     # full file path then is:
         # "cache/spec_manifests/compiler-wrapper/compiler-wrapper-1.0-bsavlbvtqsc7yjtvka3ko3aem4wye2u3"
         #cache/manifest\\compiler-wrapper-1.0-bsavlbvtqsc7yjtvka3ko3aem4wye2u3.json
-    cached_path = os.path.join(cache_dir, package_name)
-    print(f"this is the cached_path {cached_path}")
+    cached_path = os.path.join(cache_dir, package_name) if cache_dir else None
+
+    if is_spec:
+        print(f"downloading manifest for {package_name}")
+    else:
+        ########### UPDATED 8/19 ###########
+        print(f"temporary save location: {_to_posix(cached_path)} for {package_name}")
+        ####################################
 
     #if cache exists, it does not need to be redownloaded
-    if os.path.exists(cached_path):
-        print(f"Using cached file: {cached_path}")
-
+    if cached_path and os.path.exists(cached_path):
+        ########### UPDATED 8/19 ###########
+        print(f"Using cached file: {_to_posix(cached_path)}")
+        ####################################
         # rb is read binary
         with open(cached_path, "rb") as f:
             return f.read()
 
     try:
-        print("in try block for download_from_URL")
-        # adding timeout for 60 seconds
+        ########### UPDATED 8/19 ###########
+        label = _to_posix(cached_path) if cached_path else f"manifest: {package_name}"
+        print(f"trying download for {label}")
+        ####################################
+        # timeout for 60 seconds
         response = requests.get(theURL, timeout=60, verify=False)
-        print(f"trying download for {cached_path} ")
+
         # a response status code is 200 then the request was successful
         # response.status_code of 404 means does not exist
         if response.status_code == 200:
-            print(f"download successful for {cached_path}")
-            # saves to cache if request is successful
-            # wb is write binary
-            if is_spec == False:
+            if cached_path:
+                print(f"download successful for {_to_posix(cached_path)}")
+                ####################################
+                # saves to cache if request is successful
+                # wb is write binary
                 with open(cached_path, "wb") as f:
                     f.write(response.content)
-
-                return response.content 
-            else:
-                return response.content
+            return response.content
 
         else:
             # if URL does not exist, skip and move to next package
@@ -289,14 +254,6 @@ def download_from_URL(theURL, package, is_spec=True):
 
 # remove unnecessary lines in file
 def remove_lines_spec_manifest(myfile): 
-    ############ updated 8/15 ############
-    # removes unnecessary bytes
-    # removed_ends = myfile[49:-834]
-
-    # # converts bytes to dictionary
-    # database = json.loads(removed_ends)
-   
-    # return database
 
     # Accept bytes or str; extract between first '{' and last '}'
     data = myfile if isinstance(myfile, (bytes, bytearray)) else myfile.encode("utf-8")
@@ -308,8 +265,6 @@ def remove_lines_spec_manifest(myfile):
         raise ValueError("Malformed manifest: JSON braces not found")
     
     return json.loads(data[start:end+1].decode("utf-8"))
-    ######################################
-
 
 # returns checksum, sha256 hash used to download the binary tarball
 def access_spec_manifest_media_type(db): 
@@ -364,17 +319,13 @@ def write_manifest_safely(manifest_path, manifest_data):
 def read_binary_package(myfile, package, package_zip_hash): 
     file_list = []
     try:
-        # 
         with io.BytesIO(myfile) as tar_buffer:
-            with tarfile.open(fileobj = tar_buffer, mode="r") as tar:
-                
+            with tarfile.open(fileobj = tar_buffer, mode="r:*") as tar:
+       
                 print(f"Files in the tar archive for {package.split('/')[0]}:")
                 i = 1
                 for member in tar.getmembers():
                     if member.isfile():
-                        #print(f"{i}: {member.name}")
-                        #i += 1
-                        
                         # member.name for compiler-wrapper is "home/software/spack/__spack_path_placeholder__/
                             # __spack_path_placeholder__/__spack_path_placeholder__/
                             # __spack_path_placeholder__/__spack_path_placeholder__/
@@ -383,9 +334,6 @@ def read_binary_package(myfile, package, package_zip_hash):
                             # .spack/install_environment.json"
                         # package for compiler-wrapper is "compiler-wrapper/compiler-wrapper-1.0-bsavlbvtqsc7yjtvka3ko3aem4wye2u3"
                         clean_path = remove_placeholder_directories(i, member.name, package) 
-                        # ??? instead of just printing, we'll add this to a list (also save a copy of this list to the cache directory) - if we have to restart the program, then trying to get tarball from the list, we can skip the the 
-                        #   # remove_placeholder function because we will already have a copy of the list of the files in that package
-                        # # to make it easier to add to sqlite database
 
                         # this will add the files that are in the package to a clean_list
                         if clean_path:
@@ -454,14 +402,13 @@ def print_files(package_hash, package_value, index, existing_tarinfo_files, seen
 
     # use existing cleaned manifest if available
     if os.path.exists(manifest_path):
-        print(f"Using existing cleaned manifest: {manifest_path}")
+        print(f"Using existing cleaned manifest: {_to_posix(manifest_path)}")
         with open(manifest_path, "r") as f:
             clean_spec_manifest = json.load(f)
 
         # returns the URL for the spec manifest file and the package_filename
         theURL, package_filename = make_spec_manifest_URL(package_hash, package_value)
     
-    ## and indented theURL to print("✅ Cleaned and parsed spec manifest")
     else:
         # download if manifest does not exist
 
@@ -484,9 +431,6 @@ def print_files(package_hash, package_value, index, existing_tarinfo_files, seen
             return
 
         print("✅ Loaded cached spec manifest")
-
-        
-        ############ updated 8/15 ############
     
         try:
             # remove unneccessary lines from downloaded spec manifest
@@ -499,12 +443,10 @@ def print_files(package_hash, package_value, index, existing_tarinfo_files, seen
             with open(SKIPPED_MANIFESTS_FILE, "a") as f:
                 f.write(f"{package_hash}\n")
             return
-        
-        ######################################
 
         # writes cleaned manifest information to manifest file
         write_manifest_safely(manifest_path, clean_spec_manifest)
-        print(f"✅ Manifest safely written: {manifest_path}")
+        print(f"✅ Manifest safely written: {_to_posix(manifest_path)}")
 
     # find the mediaType that contains the hash for the package tarball install
     package_zip_hash = access_spec_manifest_media_type(clean_spec_manifest)
@@ -577,9 +519,6 @@ def run_program(package_hash, database, index, existing_tarinfo_files, seen_tarb
 
 
 def main():
-
-    # remove any corrupt tarballs if they exist before resuming program
-    ##purge_truncated_binaries()
     #file_name = "myMedjson.json"
     # file_name = "myjson.json"
     # file_name = 'Med_w_compilerwrapper_packages_at_end.json'
@@ -622,13 +561,11 @@ def main():
     index = load_index()
     skip = True if last_processed else False
 
-    existing_tarinfo_files = set(os.listdir(TARINFO_DIR))
-    existing_tarinfo_hashes = {
-        fname.rsplit("-", 1)[-1].replace(".json", "") for fname in existing_tarinfo_files
+    existing_tarinfo_files = {
+        Path(fname).stem
+        for fname in os.listdir(TARINFO_DIR)
+        if fname.endswith(".json")
     }
-    existing_tarinfo_files = existing_tarinfo_hashes
-
-
 
     # track already-processed tarball hashes to find shared ones
     seen_tarball_hashes = set()
@@ -653,15 +590,12 @@ def main():
                 manifest_path = entry.get("manifest_path", "")
                 tarinfo_path = entry.get("tarinfo_path", "")
                 tarball_hash = entry.get("sha256", "")
-                
-                ############ updated 8/15 ############
-                ##manifest_exists = manifest_path and os.path.exists(manifest_path)
-                ##tarinfo_exists = tarinfo_path and os.path.exists(tarinfo_path)
+
                 manifest_exists = bool(manifest_path) and Path(manifest_path).exists()
                 tarinfo_exists = bool(tarinfo_path) and Path(tarinfo_path).exists()
-                ######################################
+                
                 if manifest_exists and tarinfo_exists:
-                    #print(f"Skipping fully processed package: {package_hash}")
+                    
                     continue
                 
                 # if tarball previously failed, skip retrying it
