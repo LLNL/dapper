@@ -24,7 +24,7 @@ impl Database {
     }
 
     /// Create a prepared statement for the database from the given SQL statement string
-    pub fn prepare_statement(&self, sql: &str) -> rusqlite::Result<Statement> {
+    pub fn prepare_statement(&self, sql: &str) -> rusqlite::Result<Statement<'_>> {
         self.connection.prepare(sql)
     }
 
@@ -32,7 +32,7 @@ impl Database {
     ///
     /// Caches the result so that when no longer in use, it can be used again
     /// Should improve performance by skipping repeatedly compiling statements used multiple times
-    pub fn prepare_cached_statement(&self, sql: &str) -> rusqlite::Result<CachedStatement> {
+    pub fn prepare_cached_statement(&self, sql: &str) -> rusqlite::Result<CachedStatement<'_>> {
         self.connection.prepare_cached(sql)
     }
 }
