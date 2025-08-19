@@ -1,4 +1,4 @@
-# Spack Build Cache Data Scraper
+# Spack Build Cache Data Scraper & SQLite Database
 
 This project aims to scrape the Spack build cache by downloading, cleaning, and indexing spec manifests and binary tarballs into a local cache, then convert the data into a Spack SQLite database. 
 
@@ -52,7 +52,10 @@ The program allows for restart/resume in case there are program run interruption
 4. Resume after interruption
     If an interruption occurs, it is safe to re-run the script without losing data already processed. 
 
-5. Run Create_spack_DB.py to create SQLite database
+5. Retry manifests or tarballs
+    Delete the files `skipped_manifests.txt`, `malformed_manifests.txt`, `failed_tarball_downloads.txt`, to retry failed manifest or tarball downloads.
+
+6. Run Create_spack_DB.py to create SQLite database
     ```bash
     python Create_spack_DB.py
     ```
