@@ -59,15 +59,3 @@ The program allows for restart/resume in case there are program run interruption
     python Create_spack_DB.py
     ```
     Database will include all files extracted from the packages from the Spack build cache.
-
-## Contributing
-
-Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
-
-Please make sure to update tests as appropriate.
-
-For more information on contributing see the [CONTRIBUTING](./CONTRIBUTING.md) file.
-
-## License
-
-MIT license
