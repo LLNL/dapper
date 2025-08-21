@@ -16,7 +16,6 @@ The program allows for restart/resume in case there are program run interruption
 * `cache/spack.index.db.json` - master index
 * `cache/manifest/` - cleaned spec manifests
 * `cache/tarinfo/` - JSON file lists extracted from tarballs
-* `cache/spec_manifests/` - temporary cache of raw manifests before clean up
 * `cache/binary_packages/` - temporary cache of downloaded tarballs
 * `cache/timeouts.txt` - packages that timed out while downloading
 * `cache/skipped_manifests.txt` - a list of manifests that could not be downloaded
