@@ -61,10 +61,8 @@ os.makedirs(BINARY_CACHE_DIR, exist_ok = True)
 def _to_posix(p:str) -> str:
     return Path(p).as_posix()
 
-########### UPDATED 8/19 ###########
 def _to_posix(p: str) -> str:
     return Path(p).as_posix()
-####################################
 
 # look for index if it exists to add info to
 def load_index(): 
@@ -199,24 +197,21 @@ def download_from_URL(theURL, package, is_spec=True):
     if is_spec:
         print(f"downloading manifest for {package_name}")
     else:
-        ########### UPDATED 8/19 ###########
         print(f"temporary save location: {_to_posix(cached_path)} for {package_name}")
-        ####################################
 
     #if cache exists, it does not need to be redownloaded
     if cached_path and os.path.exists(cached_path):
-        ########### UPDATED 8/19 ###########
+        
         print(f"Using cached file: {_to_posix(cached_path)}")
-        ####################################
+        
         # rb is read binary
         with open(cached_path, "rb") as f:
             return f.read()
 
     try:
-        ########### UPDATED 8/19 ###########
         label = _to_posix(cached_path) if cached_path else f"manifest: {package_name}"
         print(f"trying download for {label}")
-        ####################################
+        
         # timeout for 60 seconds
         response = requests.get(theURL, timeout=60, verify=False)
 
@@ -225,7 +220,7 @@ def download_from_URL(theURL, package, is_spec=True):
         if response.status_code == 200:
             if cached_path:
                 print(f"download successful for {_to_posix(cached_path)}")
-                ####################################
+                
                 # saves to cache if request is successful
                 # wb is write binary
                 with open(cached_path, "wb") as f:
