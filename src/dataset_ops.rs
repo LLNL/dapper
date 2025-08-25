@@ -151,12 +151,7 @@ pub fn install_dataset(dataset_name: &str, prompt: bool) -> Result<(), Box<dyn E
     };
 
     // update dataset_info.toml
-    update_dataset_info(
-        Some(base_dir.clone()),
-        dataset_name,
-        Some(new_dataset),
-        true,
-    )?;
+    update_dataset_info(Some(base_dir.clone()), dataset_name, new_dataset, true)?;
 
     println!("Successfully installed dataset: {dataset_name}");
     Ok(())

@@ -57,7 +57,7 @@ pub fn create_dataset_info(output_path: Option<PathBuf>) -> std::io::Result<()> 
 pub fn update_dataset_info(
     base_dir: Option<PathBuf>,
     dataset_name: &str,
-    new_dataset: Option<Dataset>,
+    new_dataset: Dataset,
     add_new_dataset: bool,
 ) -> io::Result<()> {
     // Read the TOML file into a string
@@ -71,22 +71,16 @@ pub fn update_dataset_info(
     // Check if the dataset exists
     if let Some(dataset) = config.datasets.get_mut(dataset_name) {
         // If the dataset exists, update its fields
-        if let Some(new_data) = new_dataset {
-            dataset.version = new_data.version;
-            dataset.format = new_data.format;
-            dataset.timestamp = new_data.timestamp;
-            dataset.categories = new_data.categories;
-            dataset.filepath = new_data.filepath;
-        }
+        *dataset = new_dataset;
     } else if add_new_dataset {
         // If the dataset does not exist and the user wants to add a new one
-        if let Some(new_data) = new_dataset {
-            config.datasets.insert(dataset_name.to_string(), new_data);
-        } else {
-            // If the dataset does not exist and the user does not want to add a new one
-            eprintln!("Dataset '{dataset_name}' does not exist and 'add_new_dataset' is false.");
-            return Err(io::Error::new(io::ErrorKind::NotFound, "Dataset not found"));
-        }
+        config
+            .datasets
+            .insert(dataset_name.to_string(), new_dataset);
+    } else {
+        // Dataset doesn't exist and we don't want to add it
+        eprintln!("Dataset '{dataset_name}' does not exist and 'add_new_dataset' is false.");
+        return Err(io::Error::new(io::ErrorKind::NotFound, "Dataset not found"));
     }
 
     // Serialize the updated Config struct back to a TOML string
@@ -208,12 +202,8 @@ mod tests {
             filepath: PathBuf::from("test/path"),
         };
 
-        let result = update_dataset_info(
-            Some(output_path.clone()),
-            "test_dataset",
-            Some(new_dataset),
-            true,
-        );
+        let result =
+            update_dataset_info(Some(output_path.clone()), "test_dataset", new_dataset, true);
         assert!(result.is_ok(), "Updating dataset_info should succeed");
 
         // Verify the contents
@@ -257,7 +247,7 @@ mod tests {
         update_dataset_info(
             Some(output_path.clone()),
             "test_dataset",
-            Some(initial_dataset),
+            initial_dataset,
             true,
         )
         .unwrap();
@@ -274,7 +264,7 @@ mod tests {
         let result = update_dataset_info(
             Some(output_path.clone()),
             "test_dataset",
-            Some(updated_dataset),
+            updated_dataset,
             false,
         );
         assert!(result.is_ok(), "Updating existing dataset should succeed");
@@ -324,7 +314,7 @@ mod tests {
             filepath: PathBuf::from("path1"),
         };
 
-        update_dataset_info(Some(output_path.clone()), "dataset1", Some(dataset1), true).unwrap();
+        update_dataset_info(Some(output_path.clone()), "dataset1", dataset1, true).unwrap();
 
         let dataset2 = Dataset {
             version: 1,
@@ -334,7 +324,7 @@ mod tests {
             filepath: PathBuf::from("path2"),
         };
 
-        update_dataset_info(Some(output_path.clone()), "dataset2", Some(dataset2), true).unwrap();
+        update_dataset_info(Some(output_path.clone()), "dataset2", dataset2, true).unwrap();
 
         // Search for datasets in "category1"
         let result = search_dataset_by_category(output_path.join("dataset_info.toml"), "category1");
@@ -364,7 +354,7 @@ mod tests {
             filepath: PathBuf::from("path1"),
         };
 
-        update_dataset_info(Some(output_path.clone()), "dataset1", Some(dataset1), true).unwrap();
+        update_dataset_info(Some(output_path.clone()), "dataset1", dataset1, true).unwrap();
 
         let dataset2 = Dataset {
             version: 1,
@@ -374,7 +364,7 @@ mod tests {
             filepath: PathBuf::from("path2"),
         };
 
-        update_dataset_info(Some(output_path.clone()), "dataset2", Some(dataset2), true).unwrap();
+        update_dataset_info(Some(output_path.clone()), "dataset2", dataset2, true).unwrap();
 
         // Get file paths for all datasets
         let result = get_dataset_file_paths(output_path.join("dataset_info.toml"), None);
