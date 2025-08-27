@@ -3,10 +3,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-pub mod database;
-pub mod dataset_info;
-pub mod dataset_list;
-pub mod dataset_ops;
+pub mod dataset;
 pub mod debian_packaging;
 pub mod directory_info;
 pub mod file_path_utils;
@@ -27,9 +24,9 @@ pub fn run(
     uninstall: Option<String>,
     update: Option<String>,
 ) {
-    use crate::database::Database;
-    use crate::dataset_info::create_dataset_info;
-    use crate::dataset_ops::{
+    use crate::dataset::database::Database;
+    use crate::dataset::dataset_info::create_dataset_info;
+    use crate::dataset::dataset_ops::{
         install_all_datasets, install_dataset, list_available_datasets, list_installed_datasets,
         uninstall_dataset, update_all_datasets, update_dataset,
     };

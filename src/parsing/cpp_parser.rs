@@ -15,7 +15,7 @@ use tree_sitter::{Parser, Query, QueryCapture, QueryCursor};
 use super::parser::{dedup_nested_vec, par_file_iter, LibProcessor};
 use super::parser::{LangInclude, LibParser, SourceFinder, SystemProgram};
 
-use crate::database::Database;
+use crate::dataset::database::Database;
 use crate::file_path_utils::normalize_multiarch;
 use crate::parsing::bash_parser;
 
