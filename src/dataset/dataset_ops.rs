@@ -1,5 +1,5 @@
-use crate::dataset_info::{read_dataset_info, update_dataset_info, Config, Dataset};
-use crate::dataset_list::{read_dataset_list, RemoteCatalog};
+use crate::dataset::dataset_info::{read_dataset_info, update_dataset_info, Config, Dataset};
+use crate::dataset::dataset_list::{read_dataset_list, RemoteCatalog};
 use crate::directory_info::get_base_directory;
 use std::error::Error;
 use std::fs;
