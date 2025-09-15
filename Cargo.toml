@@ -14,7 +14,7 @@ cc="1.2"
 [dependencies]
 tree-sitter = "0.25"
 tree-sitter-cpp = "0.23"
-tree-sitter-python = "0.23"
+tree-sitter-python = "0.25"
 tree-sitter-rust = "0.24"
 tree-sitter-bash = "0.25.0"
 streaming-iterator = "0.1"
