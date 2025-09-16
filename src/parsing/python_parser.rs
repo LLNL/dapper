@@ -15,7 +15,7 @@ use tree_sitter::{Parser, Query, QueryCursor};
 use super::parser::{par_file_iter, LibProcessor};
 use super::parser::{LangInclude, LibParser, SourceFinder};
 
-use crate::database::Database;
+use crate::dataset::database::Database;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum PythonImport {
