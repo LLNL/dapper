@@ -83,3 +83,15 @@ categories = [
     "debian",
 ]
 urls = ["https://huggingface.co/datasets/dapper-datasets/ubuntu-focal/resolve/v1/ubuntu-focal-v1.db.zip"]
+
+[datasets.nuget]
+version = "v1"
+filepath = "nuget"
+format = "sqlite"
+timestamp = "2025-10-09"
+categories = [
+    "framework",
+    "dotnet", 
+    "nuget",
+]
+urls = ["https://huggingface.co/datasets/dapper-datasets/nuget/resolve/v1/nuget-v1.db.zip"]
