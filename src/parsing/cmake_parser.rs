@@ -9,7 +9,7 @@ use std::path::Path;
 use streaming_iterator::StreamingIterator;
 
 use super::parser::{LangInclude, LibParser, SourceFinder};
-use tree_sitter::{Node, Parser, Query, QueryCursor};
+use tree_sitter::{Parser, Query, QueryCursor};
 use walkdir::DirEntry;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -30,7 +30,12 @@ lazy_static::lazy_static! {
             (
                 normal_command
                 (identifier) @name
-                (argument_list (argument)* @arg)
+                (argument_list
+                    [
+                        (argument)      @arg
+                        (line_comment)  @comment
+                    ]+
+                )
             )
             (#match? @name "(?i)^ExternalProject_Add$")
         )
@@ -38,7 +43,12 @@ lazy_static::lazy_static! {
             (
                 normal_command
                 (identifier) @name
-                (argument_list (argument)* @arg)
+                (argument_list
+                    [
+                        (argument)      @arg
+                        (line_comment)  @comment
+                    ]+
+                )
             )
             (#match? @name "(?i)^FetchContent_Declare")
         )
@@ -51,64 +61,6 @@ impl CMakeParser {
         CMakeParser {}
     }
 
-    /// Removes comments from the provided source file
-    /// Used because of problems that the comments create when parsing and grouping with cmake grammer
-    ///
-    /// TODO: This seems somewhat computationally excessive for what we actually want
-    ///  See if the query can be modified so that we don't need this
-    fn remove_comments(source: &str) -> String {
-        let mut parser = Parser::new();
-        parser
-            .set_language(&tree_sitter_cmake::LANGUAGE.into())
-            .expect("Error loading Cmake grammar");
-
-        let tree = parser.parse(&source, None).unwrap();
-        let root_node = tree.root_node();
-
-        fn collect_ranges(node: Node, ranges: &mut Vec<(usize, usize)>) {
-            let mut cursor = node.walk();
-            for child in node.children(&mut cursor) {
-                let kind = child.kind();
-                if kind == "line_comment" || kind == "block_comment" {
-                    ranges.push((child.start_byte(), child.end_byte()));
-                }
-                // Recurse into every child
-                collect_ranges(child, ranges);
-            }
-        }
-
-        let mut ranges: Vec<(usize, usize)> = Vec::new();
-        collect_ranges(root_node, &mut ranges);
-
-        if ranges.is_empty() {
-            return source.to_string();
-        }
-
-        ranges.sort_by_key(|r| r.0);
-        let mut merged: Vec<(usize, usize)> = Vec::new();
-        for (s, e) in ranges {
-            if let Some(last) = merged.last_mut() {
-                if s <= last.1 {
-                    // overlap or adjacent
-                    if e > last.1 {
-                        last.1 = e;
-                    }
-                } else {
-                    merged.push((s, e));
-                }
-            } else {
-                merged.push((s, e));
-            }
-        }
-
-        let mut cleaned = source.to_string();
-        for (s, e) in merged.into_iter().rev() {
-            cleaned.replace_range(s..e, "");
-        }
-
-        cleaned
-    }
-
     pub fn extract_includes(file_path: &Path) -> HashSet<CMakeRemoteInclude> {
         let mut includes: HashSet<CMakeRemoteInclude> = HashSet::new();
 
@@ -119,8 +71,6 @@ impl CMakeParser {
                 return includes;
             }
         };
-        //Remove comments because they break some of the tree-sitter parsing (grouping) for cmake
-        let source_code = Self::remove_comments(source_code.as_str());
 
         let mut parser = Parser::new();
         parser
@@ -148,6 +98,7 @@ impl CMakeParser {
                 let text = text.strip_prefix('"').unwrap_or(&text).to_string();
                 let text = text.strip_suffix('"').unwrap_or(&text).to_string();
 
+                //Parse the arguments into a list, ignore anything else including comments
                 match cap_name {
                     "arg" => args.push(text),
                     _ => {}

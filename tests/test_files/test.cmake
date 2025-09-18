@@ -2,6 +2,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/output)
 include_external_msproject(OMEGA_WIN "${CMAKE_SOURCE_DIR}/external/OMEGA/projects/VS2022/OMEGA.vcxproj")
 
 ExternalProject_Add(zeta
+  # Test Comment 1
   URL https://github.com/fakeorg/zeta/releases/download/zeta-1.0.0/zeta-1.0.0-win32.zip
   URL_MD5 1234567890abcdef1234567890abcdef
   SOURCE_DIR "${CMAKE_SOURCE_DIR}/external/zeta"
@@ -100,6 +101,7 @@ endif()
 if (NOT TARGET bravo::bravo)
   FetchContent_Declare(bravo
     GIT_REPOSITORY "https://gitlab.com/opensource/bravo.git"
+    # ---- Test Comment 2
     GIT_TAG        "2.3.1"
     GIT_SHALLOW    ON)
   FetchContent_MakeAvailable(bravo)
