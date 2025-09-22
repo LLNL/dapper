@@ -18,6 +18,7 @@ pub enum CMakeRemoteInclude {
     GitRepo(String, Option<String>), //Repo URL, Git Tag [optional]
 }
 
+#[derive(Default)] //Clippy requiring default value when constructor takes no arguments
 pub struct CMakeParser {
     //Currently does not need any databases, just extracts URL(s)
 }
@@ -99,9 +100,8 @@ impl CMakeParser {
                 let text = text.strip_suffix('"').unwrap_or(&text).to_string();
 
                 //Parse the arguments into a list, ignore anything else including comments
-                match cap_name {
-                    "arg" => args.push(text),
-                    _ => {}
+                if cap_name == "arg" {
+                    args.push(text);
                 }
             }
 
@@ -111,7 +111,7 @@ impl CMakeParser {
             for pair in groups.chunks_exact(2) {
                 arg_dict.insert(pair[0].clone(), pair[1].clone());
             }
-            if let Some(dangling) = groups.chunks_exact(2).remainder().get(0) {
+            if let Some(dangling) = groups.chunks_exact(2).remainder().first() {
                 eprintln!("Warning: Dangling key without value: {}", dangling);
             }
 
@@ -120,10 +120,7 @@ impl CMakeParser {
                 includes.insert(CMakeRemoteInclude::URL(url));
             } else if arg_dict.contains_key("GIT_REPOSITORY") {
                 let repo_url = arg_dict.get("GIT_REPOSITORY").unwrap().to_string();
-                let git_tag = match arg_dict.get("GIT_TAG") {
-                    Some(tag) => Some(tag.to_string()),
-                    None => None,
-                };
+                let git_tag = arg_dict.get("GIT_TAG").map(|tag| tag.to_string());
 
                 includes.insert(CMakeRemoteInclude::GitRepo(repo_url, git_tag));
             }
