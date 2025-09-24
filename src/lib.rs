@@ -30,8 +30,9 @@ pub fn run(
         install_all_datasets, install_dataset, list_available_datasets, list_installed_datasets,
         uninstall_dataset, update_all_datasets, update_dataset,
     };
+    use crate::parsing::cmake_parser::CMakeParser;
     use crate::parsing::cpp_parser::CPPParser;
-    use crate::parsing::parser::LibProcessor;
+    use crate::parsing::parser::{LibParser, LibProcessor, SourceFinder};
     use crate::parsing::python_parser::PythonParser;
 
     // Handle install command
@@ -131,6 +132,25 @@ pub fn run(
     };
     libraries.extend(cpp_libs);
 
+    //Process CMake
+    //
+    //Functions differently because this is just the list of URLs, and doesn't have a mapping
+    //Of import -> lib/package the same way that the C++ and Python parsers do
+    //Thus cant use the same process_files calls
+    let cmake_remotes = if md.is_file() {
+        <CMakeParser as LibParser>::extract_includes(Path::new(arg_path))
+    } else if md.is_dir() {
+        let walker = WalkDir::new(arg_path).into_iter();
+        let entries = <CMakeParser as SourceFinder>::collect_source_files(walker);
+
+        entries
+            .iter()
+            .flat_map(|entry| <CMakeParser as LibParser>::extract_includes(entry))
+            .collect()
+    } else {
+        panic!("Unable to process input path argument");
+    };
+
     //Process Python
     let python_libs = if md.is_file() {
         LibProcessor::process_file(&python_parser, Path::new(arg_path))
@@ -148,5 +168,10 @@ pub fn run(
             println!("\t{rank:?}");
         }
         println!();
+    }
+
+    //Due to the different format, handle CMake includes separately
+    for include in cmake_remotes.iter() {
+        println!("{include:?}:");
     }
 }
