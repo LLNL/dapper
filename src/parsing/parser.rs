@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 use walkdir;
 use walkdir::DirEntry;
 
+use super::cmake_parser::CMakeRemoteInclude;
 use super::cpp_parser::CPPInclude;
 use super::python_parser::PythonImport;
 
@@ -27,6 +28,7 @@ pub enum LangInclude {
     OS(SystemProgram),
     CPP(CPPInclude),
     Python(PythonImport),
+    CMake(CMakeRemoteInclude),
 }
 
 // For the most part, all our parsers should implement all the following traits.
@@ -41,9 +43,6 @@ pub trait SourceFinder {
     const EXTENSIONS: &'static [&'static str];
 
     /// Checks if a given file is a source file for the particular language
-    ///
-    /// TODO: Do we always want to determine based only on filetype/extension?
-    /// Or do we ever want to actually inspect the file in some way
     fn is_source_file(entry: &DirEntry) -> bool
     where
         Self: Sized,
@@ -51,13 +50,31 @@ pub trait SourceFinder {
         if !entry.file_type().is_file() {
             return false;
         }
+        Self::check_extension(entry) || Self::check_other(entry)
+    }
 
+    /// Checks if a given file is a source file based off its extension
+    fn check_extension(entry: &DirEntry) -> bool
+    where
+        Self: Sized,
+    {
         if let Some(ext) = entry.path().extension() {
             if let Some(ext_str) = ext.to_str() {
                 let ext_lower = ext_str.to_lowercase();
                 return Self::EXTENSIONS.iter().any(|&e| e == ext_lower);
             }
         }
+        false
+    }
+
+    /// Checks if a given file is a source file based off some other criteria
+    ///
+    /// Defaults implementation always returns false, i.e is ignored
+    /// Created as a way for implementing structs to provide specific/concrete implementations
+    fn check_other(_entry: &DirEntry) -> bool
+    where
+        Self: Sized,
+    {
         false
     }
 
