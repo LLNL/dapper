@@ -49,7 +49,7 @@ class LinuxDB(Database):
 
         cursor = self.cursor()
         query = f"""
-            SELECT (file_name, normalized_file_name, file_path, package_name, full_package_name)
+            SELECT file_name, normalized_file_name, file_path, package_name, full_package_name
             FROM package_files
             WHERE {'normalized_file_name' if normalize else 'file_name'} = ?
         """
