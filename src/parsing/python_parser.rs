@@ -477,26 +477,21 @@ impl<'db> PythonParser<'db> {
         imports
     }
 
-    fn is_likely_syscall(module: &str, func: &str) -> bool 
-    {
+    fn is_likely_syscall(module: &str, func: &str) -> bool {
         let combined = format!("{}.{}", module, func);
-        let predefined = ["os.system", "subprocess.run", "os.run"]; 
+        let predefined = ["os.system", "subprocess.run", "os.run"];
 
-        if predefined.contains(&combined.as_str()) 
-        {
+        if predefined.contains(&combined.as_str()) {
             // println!("Matched: {}", combined);
             true
-        }
-        else 
-        {
+        } else {
             {
                 false
             }
         }
     }
 
-    pub fn extract_sys_calls(file_path: &Path) -> HashSet<LangInclude> 
-    {
+    pub fn extract_sys_calls(file_path: &Path) -> HashSet<LangInclude> {
         let mut calls = HashSet::new(); // variable to hold the final grouping of calls
         let source_code = match fs::read_to_string(file_path) // read the file into a string
         {
@@ -561,11 +556,9 @@ impl<'db> PythonParser<'db> {
             {
                 // println!("func_name = {} ", f);
                 // println!("module_name = {:?} ", module_name);
-                
-                if let Some(ref module) = module_name 
-                {
-                    if !Self::is_likely_syscall(module, &f)
-                    {
+
+                if let Some(ref module) = module_name {
+                    if !Self::is_likely_syscall(module, &f) {
                         continue; // not a system call we're interested in at the moment, so skip analysis
                     }
 
@@ -573,10 +566,8 @@ impl<'db> PythonParser<'db> {
                     while let Some(node) = stack.pop() {
                         if node.kind() == "string" {
                             if let Ok(raw) = node.utf8_text(source_code.as_bytes()) {
-                                let cleaned = raw
-                                    .trim_matches('"')
-                                    .trim_matches('\'')
-                                    .replace('\n', " ");
+                                let cleaned =
+                                    raw.trim_matches('"').trim_matches('\'').replace('\n', " ");
                                 if let Some(cmd) = bash_parser::parse_bash_command(&cleaned) {
                                     calls.insert(LangInclude::OS(SystemProgram::Application(cmd)));
                                 }
@@ -589,16 +580,12 @@ impl<'db> PythonParser<'db> {
                             stack.push(child);
                         }
                     }
-
                 }
             }
-            
         }
 
         calls
-        
     }
-    
 
     fn process_files<T>(&self, file_paths: T) -> HashMap<LangInclude, Vec<Vec<String>>>
     where
@@ -624,8 +611,6 @@ impl<'db> PythonParser<'db> {
                 }
             }
         });
-
-        
 
         //Prepare SQL for database query
         //TODO: Double check this, might want to normalize and change query to normalized_name
@@ -822,7 +807,7 @@ mod tests {
         .collect();
         assert_eq!(from_alias_imports, exp_from_alias_imports);
     }
-    
+
     #[test]
     fn test_extract_python_syscalls() {
         let test_file = Path::new("tests/test_files/test_sys_calls.py");
@@ -853,5 +838,4 @@ mod tests {
             "Did not expect to match free-standing run(\"rm ...\")"
         );
     }
-       
 }
