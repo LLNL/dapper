@@ -75,8 +75,7 @@ pub fn list_available_datasets(_filter: Option<&str>) -> Result<(), Box<dyn Erro
 /// Tries to find installed datasets based on provided categories and filename
 /// Without needing to manually implement getting and filtering the list of installed datasets
 ///
-/// For example, we want to find an ubuntu dataset we can filter on category = ["Linux"]
-/// And name contains "ubuntu"
+/// For example, we want to find an ubuntu dataset we can filter on category = ["linux", "ubuntu"]
 pub fn find_datasets(
     categories: Option<Vec<&str>>,
     name: Option<&str>,

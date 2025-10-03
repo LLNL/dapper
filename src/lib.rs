@@ -109,7 +109,7 @@ pub fn run(
     }
 
     //C++ database/parser
-    let cpp_db = match find_datasets(Some(vec!["linux"]), Some("ubuntu")) {
+    let cpp_db = match find_datasets(Some(vec!["linux", "ubuntu"]), None) {
         Ok(datasets) => datasets
             .into_iter()
             .next()
