@@ -1,16 +1,16 @@
 schema_version = 1
 
 [datasets.debian-bookworm]
-version = "v1"
+version = "v2"
 filepath = "debian-bookworm"
 format = "sqlite"
-timestamp = "2025-04-09"
+timestamp = "2025-08-07"
 categories = [
     "os",
     "linux",
     "debian",
 ]
-urls = ["https://huggingface.co/datasets/dapper-datasets/debian-bookworm/resolve/v1/debian-bookworm-v1.db.zip"]
+urls = ["https://huggingface.co/datasets/dapper-datasets/debian-bookworm/resolve/v2/debian-bookworm-v2.db.zip"]
 
 [datasets.pypi]
 version = "v1"
@@ -25,64 +25,64 @@ categories = [
 urls = ["https://huggingface.co/datasets/dapper-datasets/pypi/resolve/v1/pypi-v1.db.zip"]
 
 [datasets.debian-buster]
-version = "v1"
+version = "v2"
 filepath = "debian-buster"
 format = "sqlite"
-timestamp = "2025-04-09"
+timestamp = "2025-08-07"
 categories = [
     "os",
     "linux",
     "debian",
 ]
-urls = ["https://huggingface.co/datasets/dapper-datasets/debian-buster/resolve/v1/debian-buster-v1.db.zip"]
+urls = ["https://huggingface.co/datasets/dapper-datasets/debian-buster/resolve/v2/debian-buster-v2.db.zip"]
 
 [datasets.ubuntu-jammy]
-version = "v1"
+version = "v2"
 filepath = "ubuntu-jammy"
 format = "sqlite"
-timestamp = "2025-04-09"
+timestamp = "2025-08-07"
 categories = [
     "os",
     "linux",
-    "debian",
+    "ubuntu",
 ]
-urls = ["https://huggingface.co/datasets/dapper-datasets/ubuntu-jammy/resolve/v1/ubuntu-jammy-v1.db.zip"]
+urls = ["https://huggingface.co/datasets/dapper-datasets/ubuntu-jammy/resolve/v2/ubuntu-jammy-v2.db.zip"]
 
 [datasets.debian-bullseye]
-version = "v1"
+version = "v2"
 filepath = "debian-bullseye"
 format = "sqlite"
-timestamp = "2025-04-09"
+timestamp = "2025-08-07"
 categories = [
     "os",
     "linux",
     "debian",
 ]
-urls = ["https://huggingface.co/datasets/dapper-datasets/debian-bullseye/resolve/v1/debian-bullseye-v1.db.zip"]
+urls = ["https://huggingface.co/datasets/dapper-datasets/debian-bullseye/resolve/v2/debian-bullseye-v2.db.zip"]
 
 [datasets.ubuntu-noble]
-version = "v1"
+version = "v2"
 filepath = "ubuntu-noble"
 format = "sqlite"
-timestamp = "2025-04-09"
+timestamp = "2025-08-07"
 categories = [
     "os",
     "linux",
-    "debian",
+    "ubuntu",
 ]
-urls = ["https://huggingface.co/datasets/dapper-datasets/ubuntu-noble/resolve/v1/ubuntu-noble-v1.db.zip"]
+urls = ["https://huggingface.co/datasets/dapper-datasets/ubuntu-noble/resolve/v2/ubuntu-noble-v2.db.zip"]
 
 [datasets.ubuntu-focal]
-version = "v1"
+version = "v2"
 filepath = "ubuntu-focal"
 format = "sqlite"
-timestamp = "2025-04-09"
+timestamp = "2025-08-07"
 categories = [
     "os",
     "linux",
-    "debian",
+    "ubuntu",
 ]
-urls = ["https://huggingface.co/datasets/dapper-datasets/ubuntu-focal/resolve/v1/ubuntu-focal-v1.db.zip"]
+urls = ["https://huggingface.co/datasets/dapper-datasets/ubuntu-focal/resolve/v2/ubuntu-focal-v2.db.zip"]
 
 [datasets.nuget]
 version = "v1"
@@ -91,7 +91,7 @@ format = "sqlite"
 timestamp = "2025-10-09"
 categories = [
     "framework",
-    "dotnet", 
+    "dotnet",
     "nuget",
 ]
 urls = ["https://huggingface.co/datasets/dapper-datasets/nuget/resolve/v1/nuget-v1.db.zip"]
