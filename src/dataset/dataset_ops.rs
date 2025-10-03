@@ -1,6 +1,7 @@
 use crate::dataset::dataset_info::{read_dataset_info, update_dataset_info, Config, Dataset};
 use crate::dataset::dataset_list::{read_dataset_list, RemoteCatalog};
 use crate::directory_info::get_base_directory;
+use std::collections::HashSet;
 use std::error::Error;
 use std::fs;
 use std::fs::File;
@@ -32,6 +33,29 @@ pub fn list_installed_datasets() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+pub fn get_installed_datasets() -> Result<Vec<Dataset>, Box<dyn Error>> {
+    let base_dir = get_base_directory().ok_or("Unable to get the user's local data directory")?;
+
+    let config = match read_dataset_info(Some(base_dir.clone())) {
+        Ok(config) => config,
+        Err(_) => {
+            return Ok(Vec::new());
+        }
+    };
+
+    //Consumes the hashmap, moving the values into the vector to be returned
+    let mut datasets: Vec<Dataset> = config.datasets.into_values().collect();
+
+    //Replace the filepath with the full path to the database file
+    //Users of this function likely want to open/read the file(s)
+    //Which needs the entire filepath, not just the name
+    for dataset in datasets.iter_mut() {
+        dataset.filepath = base_dir.join(dataset.filepath.file_name().unwrap());
+    }
+
+    Ok(datasets)
+}
+
 pub fn list_available_datasets(_filter: Option<&str>) -> Result<(), Box<dyn Error>> {
     println!("Fetching available datasets from remote catalog...");
 
@@ -46,6 +70,46 @@ pub fn list_available_datasets(_filter: Option<&str>) -> Result<(), Box<dyn Erro
     println!("\n{} dataset(s) available", catalog.datasets.len());
 
     Ok(())
+}
+
+/// Tries to find installed datasets based on provided categories and filename
+/// Without needing to manually implement getting and filtering the list of installed datasets
+///
+/// For example, we want to find an ubuntu dataset we can filter on category = ["linux", "ubuntu"]
+pub fn find_datasets(
+    categories: Option<Vec<&str>>,
+    name: Option<&str>,
+) -> Result<Vec<Dataset>, Box<dyn Error>> {
+    let datasets = get_installed_datasets()?;
+
+    let mut filtered_datasets: Vec<Dataset> = Vec::new();
+    for dataset in datasets {
+        if let Some(categories) = &categories {
+            let filter: HashSet<&str> = categories.iter().copied().collect();
+            let dataset_categories: HashSet<&str> =
+                dataset.categories.iter().map(|s| s.as_str()).collect();
+
+            if !filter.is_subset(&dataset_categories) {
+                continue;
+            }
+        }
+
+        if let Some(name) = &name {
+            if !dataset
+                .filepath
+                .file_name()
+                .and_then(|os_str| os_str.to_str())
+                .map(|filename| filename.contains(name))
+                .unwrap_or(false)
+            {
+                continue;
+            }
+        }
+
+        filtered_datasets.push(dataset);
+    }
+
+    Ok(filtered_datasets)
 }
 
 pub fn install_dataset(dataset_name: &str, prompt: bool) -> Result<(), Box<dyn Error>> {
