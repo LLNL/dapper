@@ -96,6 +96,9 @@ jobs:
         # Initializing XDG directory
         mkdir -p $HOME/.local/share/dapper
 
+        #For debugging/transparency
+        echo "Loading manifest from: $DAPPER_DATASET_MANIFEST"
+
         # Download Linux package database
         # CLI still requires a directory to be passed in, even for --install. Should probably change in the future
         ./target/debug/dapper --install ubuntu-jammy /tmp/test-files
