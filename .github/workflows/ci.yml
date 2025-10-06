@@ -90,7 +90,8 @@ jobs:
 
     - name: Download and Extract dataset
       env:
-        DAPPER_DATASET_MANIFEST: ./docs/dataset_list.toml
+        #Points at file for the current branch/PR, if this doesn't work we could also try relative filepath
+        DAPPER_DATASET_MANIFEST: https://raw.githubusercontent.com/LLNL/dapper/${{ github.ref }}/docs/dataset_list.toml
       run: |
         # Initializing XDG directory
         mkdir -p $HOME/.local/share/dapper
