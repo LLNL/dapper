@@ -89,6 +89,9 @@ jobs:
       run: chmod +x target/debug/dapper
 
     - name: Download and Extract dataset
+      env:
+        #Points at file for the current branch, if this doesn't work we could also try relative filepath
+        DAPPER_DATASET_MANIFEST: https://raw.githubusercontent.com/LLNL/dapper/refs/heads/${{ github.ref_name }}/docs/dataset_list.toml
       run: |
         # Initializing XDG directory
         mkdir -p $HOME/.local/share/dapper
