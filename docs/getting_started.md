@@ -10,16 +10,46 @@ DAPper uses pre-built datasets that map file names to packages for various ecosy
 ### Available Datasets
 The following datasets are available at https://huggingface.co/dapper-datasets:
 
-dapper-datasets/pypi - Python Package Index mappings
-dapper-datasets/debian-bookworm - Debian Bookworm packages
-dapper-datasets/debian-bullseye - Debian Bullseye packages
-dapper-datasets/debian-buster - Debian Buster packages
-dapper-datasets/ubuntu-noble - Ubuntu Noble packages
-dapper-datasets/ubuntu-jammy - Ubuntu Jammy packages
-dapper-datasets/ubuntu-focal - Ubuntu Focal packages
-dapper-datasets/NuGet-dataset - .NET NuGet packages
+- dapper-datasets/pypi - Python Package Index mappings
+- dapper-datasets/debian-bookworm - Debian Bookworm packages
+- dapper-datasets/debian-bullseye - Debian Bullseye packages
+- dapper-datasets/debian-buster - Debian Buster packages
+- dapper-datasets/ubuntu-noble - Ubuntu Noble packages
+- dapper-datasets/ubuntu-jammy - Ubuntu Jammy packages
+- dapper-datasets/ubuntu-focal - Ubuntu Focal packages
+- dapper-datasets/NuGet-dataset - .NET NuGet packages
 
-### Set up 
+### Automated Dataset Set up
+1. List available datasets
+   ```bash
+   cargo run -- . --list-datasets
+   ```
+2. Install datasets
+
+   - A) Install a dataset 
+   ```bash
+   cargo run -- . --install <dataset_name>
+   ```
+   - B) Install all available datasets
+   ```bash
+   cargo run -- . --install all
+   ```
+3. Update datasets
+   - A) Update a dataset
+   ```bash
+   cargo run -- . --update <dataset_name>
+   ```
+   - B) Update all datasets
+   ```bash
+   cargo run -- . --update all
+   ```
+4. Uninstall a dataset
+   ```bash
+   cargo run -- . --uninstall <dataset_name>
+   ```
+
+
+### Manual Dataset Set up 
 1. Create data directory: 
 Linux/macOS:
 ```bash

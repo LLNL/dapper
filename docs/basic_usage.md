@@ -15,6 +15,15 @@ DAPper helps you:
 ### Basic Syntax
 
 ```bash
+# Download all datasets
+cargo run -- . --install all
+
+# List available datasets
+cargo run -- . --list-datasets
+
+# Update all datasets
+cargo run -- . --update all
+
 # Analyze a single file
 dapper <source_file>
 
