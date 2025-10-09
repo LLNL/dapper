@@ -56,32 +56,33 @@ pub fn read_dataset_list() -> Result<RemoteCatalog, Box<dyn Error>> {
 
     //Any better way to check if it's a web location?
     //For now just assume it's a URL if it starts with http or https
-    let content = if dataset_list_uri.starts_with("http") || dataset_list_uri.starts_with("https") {
-        let response = reqwest::blocking::get(dataset_list_uri)
-            .map_err(|e| format!("Failed to fetch dataset catalog: {e}"))?;
+    let content =
+        if dataset_list_uri.starts_with("http://") || dataset_list_uri.starts_with("https://") {
+            let response = reqwest::blocking::get(dataset_list_uri)
+                .map_err(|e| format!("Failed to fetch dataset catalog: {e}"))?;
 
-        if !response.status().is_success() {
-            return Err(format!(
-                "Failed to fetch dataset catalog: HTTP {}",
-                response.status()
-            )
-            .into());
+            if !response.status().is_success() {
+                return Err(format!(
+                    "Failed to fetch dataset catalog: HTTP {}",
+                    response.status()
+                )
+                .into());
+            }
+
+            response
+                .text()
+                .map_err(|e| format!("Failed to read response: {e}"))?
         }
+        //If it's not a URL, we'll assume it's a path to a local file
+        else {
+            let path = Path::new(dataset_list_uri.as_str());
+            if !path.exists() || !path.is_file() {
+                return Err(format!("Dataset list file not found: {dataset_list_uri}").into());
+            }
 
-        response
-            .text()
-            .map_err(|e| format!("Failed to read response: {e}"))?
-    }
-    //If it's not a URL, we'll assume it's a path to a local file
-    else {
-        let path = Path::new(dataset_list_uri.as_str());
-        if !path.exists() || !path.is_file() {
-            return Err(format!("Dataset list file not found: {dataset_list_uri}").into());
-        }
-
-        fs::read_to_string(path)
-            .unwrap_or_else(|_| panic!("Failed to read file: {dataset_list_uri}"))
-    };
+            fs::read_to_string(path)
+                .unwrap_or_else(|_| panic!("Failed to read file: {dataset_list_uri}"))
+        };
 
     let catalog: RemoteCatalog = toml::from_str(&content)?;
     Ok(catalog)
