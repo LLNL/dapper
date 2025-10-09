@@ -4,8 +4,12 @@ use serde::{
     Deserialize,
 };
 use std::collections::HashMap;
+use std::env;
 use std::error::Error;
+use std::fs;
+use std::path::Path;
 
+const DATASET_ENV_VAR: &str = "DAPPER_DATASET_MANIFEST";
 const DATASET_LIST_URL: &str = "https://dapper.readthedocs.io/en/latest/dataset_list.toml";
 
 #[derive(Deserialize, Debug)]
@@ -48,20 +52,37 @@ where
 }
 
 pub fn read_dataset_list() -> Result<RemoteCatalog, Box<dyn Error>> {
-    let response = reqwest::blocking::get(DATASET_LIST_URL)
-        .map_err(|e| format!("Failed to fetch dataset catalog: {e}"))?;
+    let dataset_list_uri = env::var(DATASET_ENV_VAR).unwrap_or(DATASET_LIST_URL.to_string());
 
-    if !response.status().is_success() {
-        return Err(format!(
-            "Failed to fetch dataset catalog: HTTP {}",
-            response.status()
-        )
-        .into());
-    }
+    //Any better way to check if it's a web location?
+    //For now just assume it's a URL if it starts with http or https
+    let content =
+        if dataset_list_uri.starts_with("http://") || dataset_list_uri.starts_with("https://") {
+            let response = reqwest::blocking::get(dataset_list_uri)
+                .map_err(|e| format!("Failed to fetch dataset catalog: {e}"))?;
 
-    let content = response
-        .text()
-        .map_err(|e| format!("Failed to read response: {e}"))?;
+            if !response.status().is_success() {
+                return Err(format!(
+                    "Failed to fetch dataset catalog: HTTP {}",
+                    response.status()
+                )
+                .into());
+            }
+
+            response
+                .text()
+                .map_err(|e| format!("Failed to read response: {e}"))?
+        }
+        //If it's not a URL, we'll assume it's a path to a local file
+        else {
+            let path = Path::new(dataset_list_uri.as_str());
+            if !path.exists() || !path.is_file() {
+                return Err(format!("Dataset list file not found: {dataset_list_uri}").into());
+            }
+
+            fs::read_to_string(path)
+                .unwrap_or_else(|_| panic!("Failed to read file: {dataset_list_uri}"))
+        };
 
     let catalog: RemoteCatalog = toml::from_str(&content)?;
     Ok(catalog)

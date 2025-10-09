@@ -27,13 +27,25 @@ pub fn run(
     use crate::dataset::database::Database;
     use crate::dataset::dataset_info::create_dataset_info;
     use crate::dataset::dataset_ops::{
-        install_all_datasets, install_dataset, list_available_datasets, list_installed_datasets,
-        uninstall_dataset, update_all_datasets, update_dataset,
+        find_datasets, install_all_datasets, install_dataset, list_available_datasets,
+        list_installed_datasets, uninstall_dataset, update_all_datasets, update_dataset,
     };
     use crate::parsing::cmake_parser::CMakeParser;
     use crate::parsing::cpp_parser::CPPParser;
     use crate::parsing::parser::{LibParser, LibProcessor, SourceFinder};
     use crate::parsing::python_parser::PythonParser;
+
+    // Initialize dataset_info.toml if it doesn't exist
+    let db_dir = get_base_directory().expect("Unable to get the user's local data directory");
+    match create_dataset_info(Some(db_dir.clone())) {
+        Ok(()) => println!("Created dataset_info.toml in {}", db_dir.display()),
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+            // File already exists, no need to print anything
+        }
+        Err(e) => {
+            eprintln!("Warning: Could not create dataset_info.toml: {e}");
+        }
+    }
 
     // Handle install command
     if let Some(dataset_name) = install {
@@ -96,26 +108,34 @@ pub fn run(
         return;
     }
 
-    // Initialize dataset_info.toml if it doesn't exist
-    let db_dir = get_base_directory().expect("Unable to get the user's local data directory");
-    match create_dataset_info(Some(db_dir.clone())) {
-        Ok(()) => println!("Created dataset_info.toml in {}", db_dir.display()),
-        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
-            // File already exists, no need to print anything
-        }
-        Err(e) => {
-            eprintln!("Warning: Could not create dataset_info.toml: {e}");
-        }
-    }
-
     //C++ database/parser
-    let db_path = db_dir.join("LinuxPackageDB.db");
-    let os_database = Database::new(&db_path).expect("Unable to connect to C++ database");
+    let cpp_db = match find_datasets(Some(vec!["linux", "ubuntu"]), None) {
+        Ok(datasets) => datasets
+            .into_iter()
+            .next()
+            .expect("Unable to find C++ (Ubuntu) database, please install one"),
+        Err(e) => {
+            eprintln!("Error: {e}");
+            std::process::exit(1);
+        }
+    };
+    let os_database =
+        Database::new(cpp_db.filepath.as_path()).expect("Unable to connect to C++ database");
     let cpp_parser = CPPParser::new(&os_database);
 
     //Python database/parser
-    let db_path = db_dir.join("PyPIPackageDB.db");
-    let python_database = Database::new(&db_path).expect("Unable to connect to Python database");
+    let python_db = match find_datasets(Some(vec!["python", "pypi"]), None) {
+        Ok(datasets) => datasets
+            .into_iter()
+            .next()
+            .expect("Unable to find Python database, please install"),
+        Err(e) => {
+            eprintln!("Error: {e}");
+            std::process::exit(1);
+        }
+    };
+    let python_database =
+        Database::new(python_db.filepath.as_path()).expect("Unable to connect to Python database");
     let python_parser = PythonParser::new(&python_database, &os_database);
 
     //Process includes for all known/supported languages

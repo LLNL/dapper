@@ -89,21 +89,19 @@ jobs:
       run: chmod +x target/debug/dapper
 
     - name: Download and Extract dataset
+      env:
+        #Points at file for the current branch/PR, if this doesn't work we could also try relative filepath
+        DAPPER_DATASET_MANIFEST: https://raw.githubusercontent.com/LLNL/dapper/${{ github.ref }}/docs/dataset_list.toml
       run: |
         # Initializing XDG directory
         mkdir -p $HOME/.local/share/dapper
 
         # Download Linux package database
-        curl -L -o /tmp/debian-buster-v2.db.zip "https://huggingface.co/datasets/dapper-datasets/debian-buster/resolve/v2/debian-buster-v2.db.zip"
-        unzip /tmp/debian-buster-v2.db.zip -d /tmp/ 
-        mv /tmp/debian-buster-v2.db $HOME/.local/share/dapper/LinuxPackageDB.db
-        rm /tmp/debian-buster-v2.db.zip
+        # CLI still requires a directory to be passed in, even for --install. Should probably change in the future
+        ./target/debug/dapper --install ubuntu-jammy /tmp/test-files
 
         # Download PyPI package database
-        curl -L -o /tmp/pypi-v1.db.zip "https://huggingface.co/datasets/dapper-datasets/pypi/resolve/v1/pypi-v1.db.zip"
-        unzip /tmp/pypi-v1.db.zip -d /tmp/
-        mv /tmp/PyPIPackageDB.db $HOME/.local/share/dapper/PyPIPackageDB.db
-        rm /tmp/pypi-v1.db.zip
+        ./target/debug/dapper --install pypi /tmp/test-files
 
     - name: Test Dapper with downloaded artifact
       run: |
