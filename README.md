@@ -12,35 +12,31 @@ The tools used to create those datasets are also available in this repository.
 > DAPper is very early in development -- things may not work as expected or be implemented yet!
 > Feel free to start a discussion in https://github.com/LLNL/dapper/discussions for things you'd like to see.
 
-### Installation
+### Build from Source (Currently supported):
 
-For now, the main way to install DAPper is compiling from source.
+For ease of use, we recommend using [rustup.rs](https://www.rust-lang.org/tools/install) which is a Rust installer and version management tool. Install `rustup` by following [their installation instructions](https://www.rust-lang.org/tools/install).
 
-1. Clone DAPper
-
-```bash
-git clone git@github.com:LLNL/dapper.git
-```
-
-2. Compile DAPper:
+1. Clone the DAPper git repository using `git`
 
 ```bash
-cargo build
-```
+git clone https://github.com/LLNL/dapper.git
+cd dapper
+``` 
 
-3. Run DAPper:
+2. Build DAPper
 
 ```bash
-cargo run <source code directory or file>
+cargo build --release
 ```
+
 
 ### Usage
 
-Run `./dapper <source code directory or file>`. The output will be the #included files from each C/C++ source code file found.
+Run `cargo run <source code directory or file>`. The output will be the #included files from each C/C++ and Python source code file found.
 
 ## Support
 
-Full user guides for DAPper are available [online](https://dapr.readthedocs.io) and in the [docs](./docs) directory.
+Full user guides for DAPper are available [online](https://dapper.readthedocs.io) and in the [docs](./docs) directory.
 
 For questions or support, please create a new discussion on [GitHub Discussions](https://github.com/LLNL/dapper/discussions/categories/q-a), or [open an issue](https://github.com/LLNL/dapper/issues/new/choose) for bug reports and feature requests.
 
