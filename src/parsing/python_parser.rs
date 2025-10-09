@@ -478,7 +478,7 @@ impl<'db> PythonParser<'db> {
     }
 
     fn is_likely_syscall(module: &str, func: &str) -> bool {
-        let combined = format!("{}.{}", module, func);
+        let combined = format!("{module}.{func}");
         let predefined = ["os.system", "subprocess.run", "os.run"];
 
         if predefined.contains(&combined.as_str()) {
@@ -526,7 +526,7 @@ impl<'db> PythonParser<'db> {
             for QueryCapture { node, index, .. } in m.captures
             // for loop to loop over the matches
             {
-                let capture_name = &PYTHON_SYS_CALL_QUERY.capture_names()[*index as usize][..]; // represents the current capture
+                let capture_name = PYTHON_SYS_CALL_QUERY.capture_names()[*index as usize]; // represents the current capture
                 match capture_name // set the func_name and args_node variables to what was in the capture
                 {
                     "function_name" => 
