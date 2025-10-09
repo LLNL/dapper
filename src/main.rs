@@ -129,7 +129,7 @@ fn main() {
 
         //Run application
         None => {
-            if cli.paths.len() == 0 {
+            if cli.paths.is_empty() {
                 println!("No paths provided");
             }
             for path in cli.paths.iter() {
