@@ -676,7 +676,7 @@ impl<'db> PythonParser<'db> {
                 // Uncomment below if you only want to return strings that appear in the database
                 // if !libs.is_empty() {
                 //     syscall_map.insert(call, vec![libs]);
-                // } 
+                // }
                 syscall_map.insert(call, vec![libs]);
             }
         }
