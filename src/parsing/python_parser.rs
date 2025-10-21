@@ -481,13 +481,7 @@ impl<'db> PythonParser<'db> {
         let combined = format!("{module}.{func}");
         let predefined = ["os.system", "subprocess.run"];
 
-        if predefined.contains(&combined.as_str()) {
-            true
-        } else {
-            {
-                false
-            }
-        }
+        predefined.contains(&combined.as_str())
     }
 
     pub fn extract_sys_calls(file_path: &Path) -> HashSet<LangInclude> {
