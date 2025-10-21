@@ -479,10 +479,9 @@ impl<'db> PythonParser<'db> {
 
     fn is_likely_syscall(module: &str, func: &str) -> bool {
         let combined = format!("{module}.{func}");
-        let predefined = ["os.system", "subprocess.run", "os.run"];
+        let predefined = ["os.system", "subprocess.run"];
 
         if predefined.contains(&combined.as_str()) {
-            // println!("Matched: {}", combined);
             true
         } else {
             {
@@ -674,9 +673,11 @@ impl<'db> PythonParser<'db> {
             };
 
             if let Ok(libs) = query_db(&func_name) {
-                if !libs.is_empty() {
-                    syscall_map.insert(call, vec![libs]);
-                }
+                // Uncomment below if you only want to return strings that appear in the database
+                // if !libs.is_empty() {
+                //     syscall_map.insert(call, vec![libs]);
+                // } 
+                syscall_map.insert(call, vec![libs]);
             }
         }
 

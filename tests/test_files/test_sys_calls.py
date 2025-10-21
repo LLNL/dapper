@@ -3,11 +3,6 @@ import subprocess
 import subprocess as sp
 from subprocess import run as sproot_run
 
-# Optional: make the file executable without AttributeError on os.run.
-if not hasattr(os, "run"):
-    def _os_run(cmd, *args, **kwargs):
-        return os.system(cmd)
-    os.run = _os_run  # type: ignore[attr-defined]
 
 def positives():
     # Should match: "os.system"
@@ -19,8 +14,6 @@ def positives():
     # Should match: "subprocess.run"
     subprocess.run(["echo", "from subprocess.run"])
 
-    # Should match: "os.run"
-    os.run("echo from os.run")
 
     # Depending on your resolver, these MAY or MAY NOT match
     # (aliases/from-imports). Keep them if you want extra coverage.
