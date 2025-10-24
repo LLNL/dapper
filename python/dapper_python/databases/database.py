@@ -3,12 +3,18 @@ from __future__ import annotations
 import functools
 import sqlite3
 from pathlib import Path
-from typing import Any, Callable, Literal, TypeVar
+from typing import Any, Callable, TypeVar
+
+try:
+    from typing import Literal  # Python 3.8+
+except (ImportError, AttributeError):
+    from typing_extensions import Literal  # type: ignore
 
 try:
     from typing import ParamSpec  # Python 3.10+
 except (ImportError, AttributeError):
     from typing_extensions import ParamSpec  # type: ignore
+
 from collections.abc import Generator
 
 T = TypeVar("T")
