@@ -97,11 +97,10 @@ jobs:
         mkdir -p $HOME/.local/share/dapper
 
         # Download Linux package database
-        # CLI still requires a directory to be passed in, even for --install. Should probably change in the future
-        ./target/debug/dapper --install ubuntu-jammy /tmp/test-files
+        ./target/debug/dapper db install ubuntu-jammy
 
         # Download PyPI package database
-        ./target/debug/dapper --install pypi /tmp/test-files
+        ./target/debug/dapper db install pypi
 
     - name: Test Dapper with downloaded artifact
       run: |
