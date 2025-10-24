@@ -7,7 +7,7 @@ from typing import Any, Callable, Literal, TypeVar
 
 try:
     from typing import ParamSpec  # Python 3.10+
-except Exception:
+except (ImportError, AttributeError):
     from typing_extensions import ParamSpec  # type: ignore
 from collections.abc import Generator
 
