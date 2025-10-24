@@ -16,13 +16,13 @@ DAPper helps you:
 
 ```bash
 # Download all datasets
-cargo run -- . --install all
+dapper db install all
 
 # List available datasets
-cargo run -- . --list-datasets
+dapper db list-available
 
 # Update all datasets
-cargo run -- . --update all
+dapper db update all
 
 # Analyze a single file
 dapper <source_file>
@@ -30,7 +30,7 @@ dapper <source_file>
 # Analyze a directory
 dapper <source_directory>
 
-# Using cargo 
+# Using cargo (if installed from source clone)
 cargo run -- <source file or directory>
 ```
 
@@ -72,5 +72,3 @@ CPP(SystemInclude("nlohmann/json_fwd.hpp")):
     - **SystemInclude("nlohmann/json_fwd.hpp")**: Shows DAPper found a system include directive #include <nlohmann/json_fwd.hpp>. This means the user is including code from third party libraries, which appears in multiple system packages.
     - **[package list]**: Array of Debian packages that potentially provide files named "test.h" or "nlohmann/json_fwd.hpp".
     > Note: output depends on the datasets a user has downloaded
-
-

@@ -12,7 +12,21 @@ The tools used to create those datasets are also available in this repository.
 > DAPper is very early in development -- things may not work as expected or be implemented yet!
 > Feel free to start a discussion in https://github.com/LLNL/dapper/discussions for things you'd like to see.
 
-### Build from Source (Currently supported):
+### Download pre-built binary (Coming soon):
+
+Soon we will provide pre-built dapper binaries on GitHub that can be downloaded.
+
+### Install from crates.io (Recommended for users):
+
+For ease of use, we recommend using [rustup.rs](https://www.rust-lang.org/tools/install) which is a Rust installer and version management tool. Install `rustup` by following [their installation instructions](https://www.rust-lang.org/tools/install).
+
+After that, install DAPper with (replacing <version> with the version to install):
+
+```bash
+cargo install dapper@<version>
+```
+
+### Build from Source (Recommended for developers):
 
 For ease of use, we recommend using [rustup.rs](https://www.rust-lang.org/tools/install) which is a Rust installer and version management tool. Install `rustup` by following [their installation instructions](https://www.rust-lang.org/tools/install).
 
@@ -29,10 +43,13 @@ cd dapper
 cargo build --release
 ```
 
+Note: Use `cargo run --` in place of `dapper` for any commands listed in the Usage section below.
 
 ### Usage
 
-Run `cargo run <source code directory or file>`. The output will be the #included files from each C/C++ and Python source code file found.
+Install datasets using `dapper db install ubuntu-noble`, `dapper db install pypi`, and optionally `dapper db install nuget`.
+
+Run `dapper <source code directory or file>`. The output will be the #included files from each C/C++ and Python source code file found.
 
 ## Support
 
