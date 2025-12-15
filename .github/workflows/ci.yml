@@ -24,7 +24,7 @@ jobs:
       run: cargo build --verbose
 
     - name: Upload dapper binary
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: dapper-binary-${{ runner.os }}
         path: |
