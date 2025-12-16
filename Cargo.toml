@@ -12,7 +12,7 @@ default-run = "dapper"
 cc="1.2"
 
 [dependencies]
-tree-sitter = "0.25"
+tree-sitter = "0.26"
 tree-sitter-cpp = "0.23"
 tree-sitter-python = "0.25"
 tree-sitter-rust = "0.24"
